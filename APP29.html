@@ -1,0 +1,3026 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control de Envíos y Trazabilidad</title>
+  <!-- Librerías externas con carga diferida (defer) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    :root {
+      --bg-color: #f4f6f9;
+      --card-bg: #ffffff;
+      --text-color: #1e293b;
+      --text-secondary: #64748b;
+      --border-color: #cbd5e1;
+      --header-color: #0f172a;
+      --portal-bg: #f8fafc;
+      --table-th-bg: #f1f5f9;
+      --table-hover: #e2e8f0;
+    }
+
+    [data-theme="dark"] {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --text-color: #f8fafc;
+      --text-secondary: #94a3b8;
+      --border-color: #334155;
+      --header-color: #f8fafc;
+      --portal-bg: #111827;
+      --table-th-bg: #0f172a;
+      --table-hover: #334155;
+    }
+
+    * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
+    body { background-color: var(--bg-color); color: var(--text-color); padding: 15px; }
+    .container { max-width: 1350px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+    .card { background: var(--card-bg); padding: 22px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1px solid var(--border-color); }
+    h1 { color: var(--header-color); font-size: 22px; }
+    h2 { color: var(--header-color); font-size: 18px; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; margin-bottom: 16px; text-align: left; }
+
+    /* RADIOS OCULTOS PARA NAVEGACIÓN */
+    .nav-radio { display: none; }
+
+    /* BARRA DE NAVEGACIÓN PERMANENTE */
+    .quick-nav { display: flex; flex-wrap: wrap; gap: 8px; background: var(--card-bg); padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border-color); align-items: center; }
+    .nav-tab { padding: 8px 13px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; background: var(--portal-bg); color: var(--text-color); border: 1px solid var(--border-color); transition: all 0.15s; user-select: none; }
+    .nav-tab:hover { border-color: #2563eb; color: #2563eb; }
+
+    .view-section { display: none; }
+    #nav-portal:checked ~ .container #portalView,
+    #nav-register:checked ~ .container #registerView,
+    #nav-dashboard:checked ~ .container #dashboardView,
+    #nav-chain:checked ~ .container #chainView,
+    #nav-trazabilidad:checked ~ .container #trazabilidadView,
+    #nav-database:checked ~ .container #databaseView,
+    #nav-history:checked ~ .container #historyView { display: block; }
+
+    #nav-portal:checked ~ .container label[for="nav-portal"],
+    #nav-register:checked ~ .container label[for="nav-register"],
+    #nav-dashboard:checked ~ .container #tabDashboardBtn,
+    #nav-chain:checked ~ .container label[for="nav-chain"],
+    #nav-trazabilidad:checked ~ .container label[for="nav-trazabilidad"],
+    #nav-database:checked ~ .container #tabDatabaseBtn,
+    #nav-history:checked ~ .container label[for="nav-history"] {
+      background: #2563eb; color: #ffffff; border-color: #2563eb;
+    }
+
+    .portal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; margin-top: 15px; }
+    .portal-card { background: var(--portal-bg); border: 2px solid var(--border-color); border-radius: 10px; padding: 24px; text-align: center; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; user-select: none; }
+    .portal-card:hover { border-color: #2563eb; transform: translateY(-3px); box-shadow: 0 6px 20px rgba(37,99,235,0.12); }
+    .portal-card h3 { color: var(--header-color); font-size: 17px; }
+    .portal-card p { color: var(--text-secondary); font-size: 13px; line-height: 1.4; }
+    .portal-icon { font-size: 34px; }
+
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
+    .btn-back { background-color: #64748b; color: white; padding: 8px 14px; font-size: 13px; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; display: inline-block; }
+    .btn-back:hover { background-color: #475569; }
+    .btn-theme { background-color: #4f46e5; color: white; padding: 8px 14px; font-size: 13px; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; }
+
+    .user-session-badge { background: #dcfce7; border: 1px solid #16a34a; color: #15803d; padding: 6px 12px; border-radius: 6px; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 15px; }
+    .form-stack { display: flex; flex-direction: column; gap: 12px; margin-bottom: 15px; }
+    .form-group { display: flex; flex-direction: column; }
+    .form-group.full-width { grid-column: 1 / -1; }
+    .form-group label { font-size: 12.5px; font-weight: 600; margin-bottom: 5px; color: var(--text-secondary); }
+    .form-group input, .form-group select { padding: 9px 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 13.5px; outline: none; background: var(--card-bg); color: var(--text-color); }
+    .form-group input:focus, .form-group select:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
+
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; justify-content: flex-end; }
+    button { padding: 9px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.15s; font-size: 13.5px; }
+    .btn-submit { background-color: #2563eb; color: white; grid-column: 1 / -1; margin-top: 10px; }
+    .btn-submit:hover { background-color: #1d4ed8; }
+    .btn-secondary { background-color: #0d9488; color: white; }
+    .btn-secondary:hover { background-color: #0f766e; }
+    .btn-excel { background-color: #16a34a; color: white; }
+    .btn-excel:hover { background-color: #15803d; }
+    .btn-pdf { background-color: #dc2626; color: white; }
+    .btn-pdf:hover { background-color: #b91c1c; }
+    .btn-info { background-color: #0284c7; color: white; }
+    .btn-info:hover { background-color: #0369a1; }
+    .btn-warning { background-color: #d97706; color: white; }
+    .btn-warning:hover { background-color: #b45309; }
+    .btn-clear { background-color: #ef4444; color: white; }
+    .btn-clear:hover { background-color: #dc2626; }
+    .btn-sm { padding: 5px 9px; font-size: 11.5px; }
+
+    .table-container { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+    th, td { padding: 9px 8px; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+    th { background-color: var(--table-th-bg); color: var(--text-secondary); font-weight: 600; }
+    tr:hover { background-color: var(--table-hover); }
+    .empty-msg { text-align: center; color: var(--text-secondary); padding: 15px; }
+
+    .grid-db { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 20px; }
+    .dynamic-items-box { background: var(--portal-bg); border: 1px dashed var(--border-color); padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; }
+    .item-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .item-row select, .item-row input { flex: 1; min-width: 105px; }
+    .row-num-badge { background: #e2e8f0; color: #334155; font-size: 11px; font-weight: 700; padding: 4px 7px; border-radius: 4px; min-width: 28px; text-align: center; }
+
+    .client-block { background: var(--portal-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .client-block-header { font-weight: 700; color: var(--header-color); font-size: 14px; border-bottom: 1px solid var(--border-color); padding-bottom: 5px; }
+
+    .dashboard-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    @media(max-width: 1024px) { .dashboard-container { grid-template-columns: 1fr; } }
+    .zone-box { background: var(--portal-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 14px; min-height: 520px; max-height: 520px; display: flex; flex-direction: column; gap: 10px; }
+    .zone-title { font-weight: 700; font-size: 15px; color: var(--header-color); display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; flex-shrink: 0; }
+    .zone-content { display: flex; flex-direction: column; gap: 10px; flex-grow: 1; overflow-y: auto; padding-right: 4px; }
+    .sub-section-title { font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-top: 5px; text-transform: uppercase; border-bottom: 1px solid var(--border-color); padding-bottom: 3px; }
+
+    .order-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 11px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; width: 100%; }
+    .order-header { display: flex; justify-content: space-between; font-weight: 700; color: #2563eb; }
+    .order-details { color: var(--text-secondary); display: flex; flex-direction: column; gap: 2px; }
+    .timer-badge { background: #fef3c7; color: #d97706; padding: 3px 7px; border-radius: 4px; font-weight: 600; font-size: 11px; width: fit-content; }
+    
+    .priority-badge { padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 10.5px; display: inline-block; text-transform: uppercase; }
+    .priority-urgente { background-color: #fee2e2; color: #dc2626; border: 1px solid #f87171; }
+    .priority-alta { background-color: #fef3c7; color: #d97706; border: 1px solid #fbbf24; }
+    .priority-general { background-color: #e0f2fe; color: #0284c7; border: 1px solid #38bdf8; }
+
+    .slot-box { border: 2px dashed var(--border-color); border-radius: 8px; padding: 9px; min-height: 90px; background: var(--card-bg); display: flex; flex-direction: column; justify-content: center; flex-shrink: 0; }
+    .slot-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
+    .card-controls { display: flex; gap: 5px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+
+    .summary-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 20px; }
+    .kpi-box { background: var(--portal-bg); border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; text-align: center; }
+    .kpi-box h4 { font-size: 13px; color: var(--text-secondary); margin-bottom: 5px; }
+    .kpi-box p { font-size: 20px; font-weight: 700; color: var(--header-color); }
+
+    /* Modales */
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.55); display: none; justify-content: center; align-items: center; z-index: 1000; padding: 15px; }
+    .modal-content { background: var(--card-bg); padding: 22px; border-radius: 12px; width: 100%; max-width: 680px; max-height: 92vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.25); }
+
+    .counter-box { background: #e0f2fe; border: 1px solid #0284c7; color: #0369a1; border-radius: 8px; padding: 11px; margin-bottom: 10px; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .counter-box.error { background: #fee2e2; border-color: #ef4444; color: #b91c1c; }
+    .counter-box.success { background: #dcfce7; border-color: #16a34a; color: #15803d; }
+
+    .status-banner { display: none; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; margin-bottom: 14px; }
+    .status-banner.success { display: block; background: #dcfce7; color: #15803d; border: 1px solid #16a34a; }
+    .status-banner.error { display: block; background: #fee2e2; color: #b91c1c; border: 1px solid #ef4444; }
+
+    /* Notificación Toast */
+    #toastContainer { position: fixed; bottom: 20px; right: 20px; z-index: 2500; display: flex; flex-direction: column; gap: 8px; max-width: 380px; }
+    .toast-msg { background: #1e293b; color: #fff; padding: 12px 16px; border-radius: 8px; box-shadow: 0 6px 16px rgba(0,0,0,0.25); font-size: 13px; border-left: 4px solid #3b82f6; animation: fadeIn 0.2s ease; }
+    .toast-msg.success { border-left-color: #22c55e; }
+    .toast-msg.error { border-left-color: #ef4444; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body data-theme="light">
+
+<!-- RADIOS CONTROLADORES DE VISTAS -->
+<input type="radio" name="app-view" id="nav-portal" class="nav-radio" checked>
+<input type="radio" name="app-view" id="nav-register" class="nav-radio">
+<input type="radio" name="app-view" id="nav-dashboard" class="nav-radio">
+<input type="radio" name="app-view" id="nav-chain" class="nav-radio">
+<input type="radio" name="app-view" id="nav-trazabilidad" class="nav-radio">
+<input type="radio" name="app-view" id="nav-database" class="nav-radio">
+<input type="radio" name="app-view" id="nav-history" class="nav-radio">
+
+<div class="container">
+  <!-- CABECERA PRINCIPAL -->
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+    <h1>🚛 Sistema de Control de Envíos y Trazabilidad</h1>
+    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+      <div id="topSessionBox" class="user-session-badge" style="display: none;">
+        <span id="topSessionText">👤 Usuario: ---</span>
+        <button type="button" class="btn-clear btn-sm" onclick="window.logoutDashboardUser()" style="padding: 3px 7px;">Salir</button>
+      </div>
+      <button type="button" class="btn-theme" id="themeBtn" onclick="window.toggleTheme()">🌙 Modo Oscuro</button>
+    </div>
+  </div>
+
+  <!-- BARRA DE NAVEGACIÓN DIRECTA -->
+  <nav class="quick-nav">
+    <label for="nav-portal" class="nav-tab" onclick="window.refreshViewData('portalView')">🏠 Portal</label>
+    <label for="nav-register" class="nav-tab" onclick="window.refreshViewData('registerView')">📝 Registrar Envío</label>
+    <span id="tabDashboardBtn" class="nav-tab" onclick="window.requestDashboardAccess()">📊 Dashboard 🔒</span>
+    <label for="nav-chain" class="nav-tab" onclick="window.refreshViewData('chainView')">🌐 Cadena de Envíos</label>
+    <label for="nav-trazabilidad" class="nav-tab" onclick="window.refreshViewData('trazabilidadView')">📋 Trazabilidad (REG 7.0.9)</label>
+    <span id="tabDatabaseBtn" class="nav-tab" onclick="window.requestDatabaseAccess()">⚙️ Bases de Datos 🔒</span>
+    <label for="nav-history" class="nav-tab" onclick="window.refreshViewData('historyView')">📈 Historial y Reportes</label>
+  </nav>
+
+  <!-- 1. PORTAL DE ACCESO -->
+  <div id="portalView" class="view-section">
+    <div class="card">
+      <h2>🏠 Portal de Acceso Principal</h2>
+      <p style="text-align: center; color: var(--text-secondary); margin-bottom: 12px; font-size: 14px;">Selecciona el apartado al que deseas ingresar:</p>
+      
+      <div class="portal-grid">
+        <label for="nav-register" class="portal-card" onclick="window.refreshViewData('registerView')">
+          <div class="portal-icon">📝</div>
+          <h3>Registrar Envío</h3>
+          <p>Crear un nuevo despacho de carga, asignar choferes, múltiples clientes y artículos en toneladas.</p>
+        </label>
+
+        <div class="portal-card" onclick="window.requestDashboardAccess()">
+          <div class="portal-icon">📊</div>
+          <h3>Dashboard (Estatus) 🔒</h3>
+          <p>Control visual de órdenes en Por ingresar, Patio y Andenes. Requiere usuario y contraseña para firmar trazabilidad.</p>
+        </div>
+
+        <label for="nav-chain" class="portal-card" onclick="window.refreshViewData('chainView')">
+          <div class="portal-icon">🌐</div>
+          <h3>Cadena de Envíos (Visor)</h3>
+          <p>Visualización interactiva en tiempo real de estatus en curso y resúmenes diarios de carga.</p>
+        </label>
+
+        <label for="nav-trazabilidad" class="portal-card" onclick="window.refreshViewData('trazabilidadView')">
+          <div class="portal-icon">📋</div>
+          <h3>Registros de Trazabilidad</h3>
+          <p>Consultar y exportar registros de trazabilidad (con firma automática del usuario realizador) en Excel y PDF.</p>
+        </label>
+
+        <div class="portal-card" onclick="window.requestDatabaseAccess()">
+          <div class="portal-icon">⚙️</div>
+          <h3>Bases de Datos 🔒</h3>
+          <p>Administrar catálogos de Líneas de Transporte, Clientes, Productos y Usuarios (Acceso restringido Administrador).</p>
+        </div>
+
+        <label for="nav-history" class="portal-card" onclick="window.refreshViewData('historyView')">
+          <div class="portal-icon">📈</div>
+          <h3>Historial y Reportes</h3>
+          <p>Consultar envíos embarcados y descargar informes en Excel o PDF con toneladas y tiempos.</p>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. REGISTRAR ENVÍO -->
+  <div id="registerView" class="view-section">
+    <div class="top-bar">
+      <label for="nav-portal" class="btn-back" onclick="window.refreshViewData('portalView')">⬅️ Volver al Portal</label>
+    </div>
+    <div class="card">
+      <h2>📝 Registrar Nuevo Envío</h2>
+      <div id="regStatusBanner" class="status-banner"></div>
+      <div id="shippingForm" class="form-grid">
+        <div class="form-group">
+          <label for="referencia">Referencia del Envío</label>
+          <input type="text" id="referencia" placeholder="Ej. Orden #10293 o Factura A-589">
+        </div>
+
+        <div class="form-group">
+          <label for="prioridad">Prioridad de Carga</label>
+          <select id="prioridad">
+            <option value="GENERAL">🔵 GENERAL</option>
+            <option value="ALTA">🟡 ALTA</option>
+            <option value="URGENTE">🔴 URGENTE</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="transporte">Línea de Transporte</label>
+          <select id="transporte" onchange="window.onSelectTransporte()">
+            <option value="">-- Selecciona una línea --</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="chofer">Chofer</label>
+          <select id="chofer" disabled onchange="window.onSelectChofer()">
+            <option value="">-- Selecciona chofer --</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="placas">Placas</label>
+          <select id="placas" disabled>
+            <option value="">-- Selecciona placas --</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="numClientes">Cantidad de Clientes</label>
+          <input type="number" id="numClientes" min="1" max="5" value="1" onchange="window.renderClientBlocks()">
+        </div>
+
+        <div class="form-group full-width">
+          <label>Configuración de Clientes y Artículos Asociados</label>
+          <div id="clientsConfigContainer"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="tarifaEnvio">Tarifa de Envío ($)</label>
+          <input type="number" id="tarifaEnvio" step="0.01" min="0" placeholder="Ej. 12.50">
+        </div>
+        <div class="form-group">
+          <label for="costoEnvio">Costo de Envío ($)</label>
+          <input type="number" id="costoEnvio" step="0.01" min="0" placeholder="Ej. 6250.00">
+        </div>
+        <div class="form-group">
+          <label for="tarifaManiobra">Tarifa Maniobra ($/Ton)</label>
+          <input type="number" id="tarifaManiobra" step="0.01" min="0" placeholder="Ej. 2.00" oninput="window.calcularCostosTotal()">
+        </div>
+        <div class="form-group">
+          <label for="costoManiobra">Costo Total Maniobra ($)</label>
+          <input type="text" id="costoManiobra" readonly placeholder="Auto (Tonelada Total x Tarifa)">
+        </div>
+
+        <button type="button" class="btn-submit" onclick="window.saveShippingAction()">➕ Registrar y Enviar a "Por ingresar"</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. DASHBOARD (ESTATUS - ACCESO CON USUARIO Y CONTRASEÑA) -->
+  <div id="dashboardView" class="view-section">
+    <div class="top-bar">
+      <label for="nav-portal" class="btn-back" onclick="window.refreshViewData('portalView')">⬅️ Volver al Portal</label>
+      <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+        <span id="dashActiveUserBanner" class="user-session-badge">👤 Operador Activo: ---</span>
+        <button type="button" class="btn-info btn-sm" onclick="window.openDashboardLoginModal(true)">🔑 Cambiar Usuario</button>
+        <button type="button" class="btn-warning btn-sm" onclick="window.resetAllOrdersAction()">🔄 Devolver todos a Por ingresar</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>📊 Dashboard de Operaciones y Estatus</h2>
+      <div class="dashboard-container">
+        <div class="zone-box">
+          <div class="zone-title">📥 Por ingresar <span id="countPorIngresar" class="timer-badge">0</span></div>
+          <div class="zone-content" id="zonePorIngresar"></div>
+        </div>
+
+        <div class="zone-box">
+          <div class="zone-title">🅿️ Patio (9 Espacios) <span id="countPatio" class="timer-badge">0/9</span></div>
+          <div class="zone-content" id="zonePatio"></div>
+        </div>
+
+        <div class="zone-box">
+          <div class="zone-title">🚪 Andenes <span id="countAndenes" class="timer-badge">0/10</span></div>
+          <div class="zone-content" id="zoneAndenes"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. CADENA DE ENVÍOS -->
+  <div id="chainView" class="view-section">
+    <div class="top-bar">
+      <label for="nav-portal" class="btn-back" onclick="window.refreshViewData('portalView')">⬅️ Volver al Portal</label>
+    </div>
+    <div class="card">
+      <h2>🌐 Visor Interactivo de la Cadena de Envíos</h2>
+      <div class="summary-kpi-grid">
+        <div class="kpi-box">
+          <h4>📦 Toneladas Cargadas Hoy</h4>
+          <p id="kpiTodayTons">0.00 Ton</p>
+          <span style="font-size: 11px; color: var(--text-secondary);" id="kpiTodayCount">0 órdenes finalizadas</span>
+        </div>
+        <div class="kpi-box">
+          <h4>📦 Toneladas Cargadas Ayer</h4>
+          <p id="kpiYesterdayTons">0.00 Ton</p>
+          <span style="font-size: 11px; color: var(--text-secondary);" id="kpiYesterdayCount">0 órdenes finalizadas</span>
+        </div>
+        <div class="kpi-box">
+          <h4>🚛 Órdenes Activas en Curso</h4>
+          <p id="kpiActiveCount">0</p>
+          <span style="font-size: 11px; color: var(--text-secondary);">En Por ingresar, Patio o Andenes</span>
+        </div>
+      </div>
+
+      <h2 style="font-size: 15px; margin-top: 20px;">🔄 Estatus Global de Envíos en Curso</h2>
+      <div class="table-container" style="margin-top: 10px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Referencia</th>
+              <th>Prioridad</th>
+              <th>Fase Actual</th>
+              <th>Ubicación / Slot</th>
+              <th>Transporte</th>
+              <th>Chofer / Placas</th>
+              <th>Cliente(s) / Destino</th>
+              <th>Total Ton</th>
+            </tr>
+          </thead>
+          <tbody id="chainTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. REGISTROS DE TRAZABILIDAD -->
+  <div id="trazabilidadView" class="view-section">
+    <div class="top-bar">
+      <label for="nav-portal" class="btn-back" onclick="window.refreshViewData('portalView')">⬅️ Volver al Portal</label>
+    </div>
+    <div class="card">
+      <h2>📋 Registros de Trazabilidad en Andén (Formato REG 7.0.9 V10 - 30 Filas)</h2>
+      <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 15px;">Historial de registros de trazabilidad capturados en andén. Incluye el nombre de quien realizó el registro en el área de firmas (sin mostrar el ID de usuario).</p>
+      
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Andén</th>
+              <th>Número de Envío</th>
+              <th>Almacén</th>
+              <th>Fecha</th>
+              <th>Línea de Transporte</th>
+              <th>Chofer</th>
+              <th>Placas</th>
+              <th>Realizado por (Firma)</th>
+              <th>Detalle de Lotes, Cantidades y Tarimas</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="trazabilidadTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. BASES DE DATOS (PROTEGIDO CON ADMIN / Garcia96) -->
+  <div id="databaseView" class="view-section">
+    <div class="top-bar">
+      <label for="nav-portal" class="btn-back" onclick="window.refreshViewData('portalView')">⬅️ Volver al Portal</label>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <span class="user-session-badge">🔐 Administrador Activo (admin)</span>
+        <button type="button" class="btn-clear btn-sm" onclick="window.logoutDatabaseAdmin()">🔒 Bloquear Bases de Datos</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>⚙️ Administrar Bases de Datos</h2>
+      <div id="dbStatusBanner" class="status-banner"></div>
+      <div class="grid-db">
+        <!-- LÍNEAS DE TRANSPORTE -->
+        <div>
+          <h2>Líneas y Choferes</h2>
+          <div id="catalogForm" class="form-stack">
+            <input type="hidden" id="editCatalogLineaOld" value="">
+            <input type="hidden" id="editCatalogIndex" value="">
+            <div class="form-group">
+              <label for="catTransporte">Línea de Transporte</label>
+              <input type="text" id="catTransporte" placeholder="Ej. Transportes del Norte" list="lineasList">
+              <datalist id="lineasList"></datalist>
+            </div>
+            <div class="form-group">
+              <label for="catChofer">Nombre del Chofer</label>
+              <input type="text" id="catChofer" placeholder="Ej. Juan Pérez">
+            </div>
+            <div class="form-group">
+              <label for="catPlacas">Placas del Vehículo</label>
+              <input type="text" id="catPlacas" placeholder="Ej. ABC-1234">
+            </div>
+            <button type="button" class="btn-secondary" id="btnSaveTransport" onclick="window.saveTransportAction()" style="width:100%;">💾 Guardar Transporte</button>
+            <button type="button" class="btn-clear" id="btnCancelTransport" onclick="window.resetTransportForm()" style="display:none; width:100%;">❌ Cancelar</button>
+          </div>
+          <div class="table-container" style="max-height: 240px; overflow-y: auto;">
+            <table>
+              <thead><tr><th>Línea</th><th>Chofer</th><th>Placas</th><th>Acción</th></tr></thead>
+              <tbody id="catalogTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- CLIENTES / DESTINOS -->
+        <div>
+          <h2>Clientes / Destinos</h2>
+          <div id="clientForm" class="form-stack">
+            <input type="hidden" id="editClientIndex" value="">
+            <div class="form-group">
+              <label for="catCliente">Nombre del Cliente</label>
+              <input type="text" id="catCliente" placeholder="Ej. Empresa ABC S.A.">
+            </div>
+            <div class="form-group">
+              <label for="catNumCliente">Número de Cliente (Opcional)</label>
+              <input type="text" id="catNumCliente" placeholder="Ej. CUST-001">
+            </div>
+            <div class="form-group">
+              <label for="catCategoriaCliente">Categoría de Cliente (Opcional)</label>
+              <select id="catCategoriaCliente">
+                <option value="">-- Seleccionar Categoría --</option>
+                <option value="Bodega">Bodega</option>
+                <option value="Especial">Especial</option>
+                <option value="Planta">Planta</option>
+                <option value="IMT">IMT</option>
+                <option value="Institucional">Institucional</option>
+                <option value="Gobierno">Gobierno</option>
+              </select>
+            </div>
+            <button type="button" class="btn-secondary" id="btnSaveClient" onclick="window.saveClientAction()" style="width:100%;">💾 Guardar Cliente</button>
+            <button type="button" class="btn-clear" id="btnCancelClient" onclick="window.resetClientForm()" style="display:none; width:100%;">❌ Cancelar Edición</button>
+          </div>
+          <div class="table-container" style="max-height: 240px; overflow-y: auto; margin-top: 15px;">
+            <table>
+              <thead><tr><th>Nombre</th><th>No. Cliente</th><th>Categoría</th><th>Acción</th></tr></thead>
+              <tbody id="clientTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- PRODUCTOS / RECURSOS -->
+        <div>
+          <h2>Productos / Recursos</h2>
+          <div id="productForm" class="form-stack">
+            <input type="hidden" id="editProductIndex" value="">
+            <div class="form-group">
+              <label for="catProducto">Nombre del Artículo / Recurso</label>
+              <input type="text" id="catProducto" placeholder="Ej. Harina de Maíz Minsa">
+            </div>
+            <div class="form-group">
+              <label for="catCodigoProducto">Código de artículos (Numérico - Opcional)</label>
+              <input type="number" id="catCodigoProducto" step="1" min="0" placeholder="Ej. 10450">
+            </div>
+            <div class="form-group">
+              <label for="catConjuntoProducto">Conjunto de artículos (Numérico - Opcional)</label>
+              <input type="number" id="catConjuntoProducto" step="1" min="0" placeholder="Ej. 200">
+            </div>
+            <button type="button" class="btn-secondary" id="btnSaveProduct" onclick="window.saveProductAction()" style="width:100%;">💾 Guardar Producto</button>
+            <button type="button" class="btn-clear" id="btnCancelProduct" onclick="window.resetProductForm()" style="display:none; width:100%;">❌ Cancelar Edición</button>
+          </div>
+          <div class="table-container" style="max-height: 240px; overflow-y: auto; margin-top: 15px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre del Artículo</th>
+                  <th>Código</th>
+                  <th>Conjunto</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody id="productTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- REGISTRO DE USUARIOS -->
+        <div>
+          <h2>Registro de Usuarios</h2>
+          <div id="userDbForm" class="form-stack">
+            <input type="hidden" id="editUserIndex" value="">
+            <div class="form-group">
+              <label for="catUserNombre">Nombre de usuario</label>
+              <input type="text" id="catUserNombre" placeholder="Ej. Juan Pérez">
+            </div>
+            <div class="form-group">
+              <label for="catUserPass">Contraseña</label>
+              <input type="password" id="catUserPass" placeholder="••••••••">
+            </div>
+            <div class="form-group">
+              <label for="catUserPuesto">Puesto</label>
+              <input type="text" id="catUserPuesto" placeholder="Ej. Supervisor de Embarques">
+            </div>
+            <div class="form-group">
+              <label for="catUserId">ID</label>
+              <input type="text" id="catUserId" placeholder="Ej. USR-001 o 10045">
+            </div>
+            <button type="button" class="btn-secondary" id="btnSaveUser" onclick="window.saveUserAction()" style="width:100%;">💾 Guardar Usuario</button>
+            <button type="button" class="btn-clear" id="btnCancelUser" onclick="window.resetUserForm()" style="display:none; width:100%;">❌ Cancelar Edición</button>
+          </div>
+          <div class="table-container" style="max-height: 240px; overflow-y: auto; margin-top: 15px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Usuario</th>
+                  <th>Contraseña</th>
+                  <th>Puesto</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody id="userDbTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. HISTORIAL Y REPORTES -->
+  <div id="historyView" class="view-section">
+    <div class="top-bar">
+      <label for="nav-portal" class="btn-back" onclick="window.refreshViewData('portalView')">⬅️ Volver al Portal</label>
+    </div>
+    <div class="card">
+      <h2>📈 Historial de Envíos Embarcados y Reportes</h2>
+      <div class="actions">
+        <button type="button" class="btn-excel" onclick="window.exportHistoryExcel()">📥 Descargar Historial (Excel)</button>
+        <button type="button" class="btn-info" onclick="window.exportProductsExcel()">📈 Resumen Productos (Excel)</button>
+        <button type="button" class="btn-secondary" onclick="window.exportClientsExcel()">👥 Productos por Cliente (Excel)</button>
+        <button type="button" class="btn-pdf" onclick="window.exportTimePDF()">📄 Reporte de Tiempos (PDF)</button>
+        <button type="button" class="btn-clear" onclick="window.clearHistoryAction()">🗑️ Borrar Historial</button>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Referencia</th>
+              <th>Prioridad</th>
+              <th>Transporte</th>
+              <th>Chofer</th>
+              <th>Placas</th>
+              <th>Cliente(s) Destino</th>
+              <th>Artículos</th>
+              <th>Total Toneladas</th>
+              <th>Tiempo Patio</th>
+              <th>Tiempo Andén</th>
+              <th>Costo Total</th>
+            </tr>
+          </thead>
+          <tbody id="dataTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DE ACCESO A BASES DE DATOS (ADMIN / Garcia96) -->
+<div id="databaseLoginModal" class="modal-overlay" style="z-index: 1250;">
+  <div class="modal-content" style="max-width: 420px;">
+    <h2>🔐 Acceso a Bases de Datos</h2>
+    <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 14px;">Ingresa las credenciales de administrador para gestionar los catálogos de la Base de Datos.</p>
+    <div id="dbLoginErrorBanner" class="status-banner"></div>
+    <div class="form-stack">
+      <div class="form-group">
+        <label for="dbLoginUser">Usuario Administrador</label>
+        <input type="text" id="dbLoginUser" placeholder="Usuario">
+      </div>
+      <div class="form-group">
+        <label for="dbLoginPass">Contraseña</label>
+        <input type="password" id="dbLoginPass" placeholder="••••••••">
+      </div>
+    </div>
+    <div class="actions" style="margin-bottom: 0;">
+      <button type="button" class="btn-clear" onclick="window.closeDatabaseLoginModal()">Cancelar</button>
+      <button type="button" class="btn-excel" onclick="window.verifyDatabaseLogin()">🔑 Desbloquear Bases de Datos</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DE ACCESO AL DASHBOARD (VALIDACIÓN CONTRA BASE DE DATOS DE USUARIOS) -->
+<div id="dashboardLoginModal" class="modal-overlay" style="z-index: 1200;">
+  <div class="modal-content" style="max-width: 440px;">
+    <h2>🔐 Acceso al Dashboard de Operaciones</h2>
+    <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 14px;">Ingresa tu <b>Nombre de usuario</b> y <b>Contraseña</b> registrados en la Base de Datos de Usuarios. Tu nombre aparecerá en el área de firmas de las hojas de trazabilidad que generes.</p>
+    <div id="dashLoginErrorBanner" class="status-banner"></div>
+    <div class="form-stack">
+      <div class="form-group">
+        <label for="dashLoginUser">Nombre de usuario</label>
+        <input type="text" id="dashLoginUser" placeholder="Ingresa tu usuario">
+      </div>
+      <div class="form-group">
+        <label for="dashLoginPass">Contraseña</label>
+        <input type="password" id="dashLoginPass" placeholder="••••••••">
+      </div>
+    </div>
+    <div id="dashLoginHint" style="font-size: 11.5px; color: var(--text-secondary); margin-bottom: 12px; background: var(--portal-bg); padding: 8px 10px; border-radius: 6px; border: 1px dashed var(--border-color);"></div>
+    <div class="actions" style="margin-bottom: 0;">
+      <button type="button" class="btn-clear" onclick="window.closeDashboardLoginModal()">Cancelar</button>
+      <button type="button" class="btn-excel" onclick="window.verifyDashboardLogin()">🔑 Ingresar al Dashboard</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL SELECCIÓN DE ANDÉN -->
+<div id="assignAndenModal" class="modal-overlay">
+  <div class="modal-content" style="max-width: 450px;">
+    <h2>🚪 Seleccionar Andén de Carga</h2>
+    <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 15px;">Elige un andén disponible para asignar la unidad:</p>
+    <input type="hidden" id="assignAndenOrderId" value="">
+    <div class="form-group">
+      <label for="selectTargetAnden">Andenes Disponibles</label>
+      <select id="selectTargetAnden"></select>
+    </div>
+    <div class="actions" style="margin-top: 15px;">
+      <button type="button" class="btn-clear" onclick="window.closeAssignAndenModal()">Cancelar</button>
+      <button type="button" class="btn-excel" onclick="window.confirmAssignAndenAction()">✅ Asignar Andén</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PRINCIPAL DE REGISTRO DE TRAZABILIDAD -->
+<div id="trazabilidadModal" class="modal-overlay">
+  <div class="modal-content">
+    <h2>📋 Registrar Trazabilidad en Andén (REG 7.0.9 V10)</h2>
+    <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 15px;">Complete los datos generales y configure los lotes restringidos únicamente a los productos y cantidades del envío.</p>
+    <div id="trazabilidadForm" class="form-grid">
+      <input type="hidden" id="trazRecordId" value="">
+      <input type="hidden" id="trazOrderRef" value="">
+
+      <div class="form-group">
+        <label for="trazAnden">Andén de Carga</label>
+        <select id="trazAnden">
+          <option value="Anden 1">Anden 1</option>
+          <option value="Anden 2">Anden 2</option>
+          <option value="Anden 3">Anden 3</option>
+          <option value="Anden 4">Anden 4</option>
+          <option value="Anden 5">Anden 5</option>
+          <option value="Anden 6">Anden 6</option>
+          <option value="Anden B1">Anden B1</option>
+          <option value="Anden B2">Anden B2</option>
+          <option value="Anden B3">Anden B3</option>
+          <option value="Anden B4">Anden B4</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="trazNumEnvio">Número de Envío (Automático)</label>
+        <input type="text" id="trazNumEnvio" readonly style="background-color: var(--portal-bg); font-weight: bold; color: #2563eb;">
+      </div>
+
+      <div class="form-group">
+        <label for="trazAlmacen">Almacén</label>
+        <select id="trazAlmacen">
+          <option value="2OCC">2OCC</option>
+          <option value="2GDL">2GDL</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="trazFecha">Fecha (DD/MM/AAAA)</label>
+        <input type="text" id="trazFecha">
+      </div>
+
+      <div class="form-group">
+        <label for="trazTransporte">Línea de Transporte</label>
+        <input type="text" id="trazTransporte" readonly>
+      </div>
+
+      <div class="form-group">
+        <label for="trazChofer">Nombre del Chofer de la Línea</label>
+        <input type="text" id="trazChofer">
+      </div>
+
+      <div class="form-group">
+        <label for="trazPlacas">Placas</label>
+        <input type="text" id="trazPlacas" readonly>
+      </div>
+
+      <div class="form-group">
+        <label for="trazRealizadoPor">Realizado por (Firma de Trazabilidad)</label>
+        <input type="text" id="trazRealizadoPor" readonly style="background-color: var(--portal-bg); font-weight: bold; color: #15803d;">
+      </div>
+
+      <div class="form-group full-width" style="margin-top: 8px;">
+        <label>Registro de Lotes, Cantidades en TM, Recursos del Envío y N° de Tarima / Megasaco (Máx. 30 registros)</label>
+        <div style="display:flex; justify-content:space-between; align-items:center; background:var(--portal-bg); padding:12px; border:1px solid var(--border-color); border-radius:8px; flex-wrap:wrap; gap:10px;">
+          <span id="lotesSummaryText" style="font-size:13px; font-weight:bold;">Sin lotes configurados</span>
+          <button type="button" class="btn-info" onclick="window.openLotesModalAction()">📦 Agregar / Editar Lotes y Tarimas</button>
+        </div>
+      </div>
+
+      <div class="actions" style="grid-column: 1 / -1; margin-top: 12px;">
+        <button type="button" class="btn-clear" onclick="window.closeTrazModal()">Cancelar</button>
+        <button type="button" class="btn-submit" onclick="window.saveTrazabilidadAction()" style="margin-top:0;">💾 Guardar y Exportar PDF Oficial</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DE LOTES Y TARIMAS (SOLO PRODUCTOS DEL ENVÍO Y RESTRICCIÓN ESTRICTA POR PRODUCTO) -->
+<div id="lotesModal" class="modal-overlay" style="z-index: 1100;">
+  <div class="modal-content" style="max-width: 960px;">
+    <h2>📦 Ingreso de Valores de Trazabilidad (Exclusivo Productos del Envío)</h2>
+    <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 10px;">Solo se despliegan los productos incluidos en el envío. No se puede exceder la cantidad en TM ni el límite de lotes permitidos para cada producto del envío.</p>
+    
+    <div id="lotesCounterBox" class="counter-box">
+      <div>
+        <span>Requerido Total Envío: <b id="valTargetQty">0.00</b> TM</span> | 
+        <span>Ingresado Total: <b id="valCurrentQty">0.00</b> TM</span> | 
+        <span>Registros: <b id="valRowCount">0</b>/30</span>
+      </div>
+      <div id="valStatusBadge">Pendiente</div>
+    </div>
+
+    <div id="lotesPerResourceBox" class="counter-box" style="margin-bottom: 12px; font-size: 12px; flex-direction: column; align-items: flex-start; gap: 4px;">
+      <div id="lotesPerResourceText" style="width: 100%;">Control por producto del envío: Sin datos aún</div>
+    </div>
+
+    <div id="modalLotesContainer" class="dynamic-items-box"></div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:15px; flex-wrap:wrap; gap:10px;">
+      <button type="button" class="btn-secondary btn-sm" onclick="window.addLoteRowAction()">➕ Agregar Fila de Trazabilidad (Máx. 30)</button>
+      <div style="display:flex; gap:10px;">
+        <button type="button" class="btn-clear" onclick="window.closeLotesModal()">Cancelar</button>
+        <button type="button" class="btn-excel" onclick="window.saveValidateLotesAction()">✅ Validar y Confirmar Lotes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+
+<script>
+  const MAX_TRAZ_ROWS = 30;
+  const MAX_LOTES_PER_RESOURCE = 3;
+
+  function notify(msg, type = 'info', bannerId = null) {
+    const container = document.getElementById('toastContainer');
+    if (container) {
+      const toast = document.createElement('div');
+      toast.className = 'toast-msg ' + type;
+      toast.textContent = msg;
+      container.appendChild(toast);
+      setTimeout(() => { toast.remove(); }, 4000);
+    }
+    if (bannerId) {
+      const banner = document.getElementById(bannerId);
+      if (banner) {
+        banner.className = 'status-banner ' + (type === 'error' ? 'error' : 'success');
+        banner.style.display = 'block';
+        banner.textContent = msg;
+        setTimeout(() => { banner.style.display = 'none'; banner.className = 'status-banner'; }, 4200);
+      }
+    }
+  }
+
+  const memoryStore = {};
+  function safeGet(key) {
+    try { return localStorage.getItem(key); } catch (e) { return memoryStore[key] || null; }
+  }
+  function safeSet(key, val) {
+    try { localStorage.setItem(key, val); } catch (e) { memoryStore[key] = val; }
+  }
+  function loadJSON(key, fallback) {
+    try {
+      const raw = safeGet(key);
+      if (!raw) return fallback;
+      const parsed = JSON.parse(raw);
+      return parsed !== null ? parsed : fallback;
+    } catch (e) { return fallback; }
+  }
+  function saveJSON(key, val) {
+    memoryStore[key] = JSON.stringify(val);
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
+  }
+
+  let catalog = loadJSON('transport_catalog', {});
+  let clients = loadJSON('clients_catalog', []);
+  let products = loadJSON('products_catalog', []);
+  let users = loadJSON('users_db_catalog', []);
+  let activeOrders = loadJSON('active_orders', []);
+  let shipments = loadJSON('shipments_data', []);
+  let trazabilidadRecords = loadJSON('trazabilidad_records', []);
+  let currentDashboardUser = loadJSON('active_dashboard_user', null);
+  let isDatabaseUnlocked = false;
+
+  if (!catalog || typeof catalog !== 'object' || Array.isArray(catalog)) catalog = {};
+  if (!Array.isArray(clients)) clients = [];
+  if (!Array.isArray(products)) products = [];
+  if (!Array.isArray(users)) users = [];
+  if (!Array.isArray(activeOrders)) activeOrders = [];
+  if (!Array.isArray(shipments)) shipments = [];
+  if (!Array.isArray(trazabilidadRecords)) trazabilidadRecords = [];
+
+  clients = clients.map(c => typeof c === 'string' ? { name: c, num: '', categoria: '' } : c);
+  products = products.map(p => typeof p === 'string' ? { name: p, codigo: '', conjunto: '' } : {
+    name: p.name || '',
+    codigo: p.codigo !== undefined && p.codigo !== null ? String(p.codigo) : '',
+    conjunto: p.conjunto !== undefined && p.conjunto !== null ? String(p.conjunto) : ''
+  });
+  users = users.map(u => ({
+    username: u.username || '',
+    password: u.password || '',
+    puesto: u.puesto || '',
+    id: u.id !== undefined && u.id !== null ? String(u.id) : ''
+  }));
+
+  function getProductNamesList() {
+    return products.map(p => p.name).filter(Boolean);
+  }
+
+  let currentTrazOrder = null;
+  let tempLotes = [];
+
+  const viewToRadioMap = {
+    portalView: 'nav-portal',
+    registerView: 'nav-register',
+    dashboardView: 'nav-dashboard',
+    chainView: 'nav-chain',
+    trazabilidadView: 'nav-trazabilidad',
+    databaseView: 'nav-database',
+    historyView: 'nav-history'
+  };
+
+  // --- CONTROL DE ACCESO A BASES DE DATOS (admin / Garcia96) ---
+  function updateDatabaseTabUI() {
+    const tabDbBtn = document.getElementById('tabDatabaseBtn');
+    if (tabDbBtn) {
+      tabDbBtn.textContent = isDatabaseUnlocked ? '⚙️ Bases de Datos 🔓' : '⚙️ Bases de Datos 🔒';
+    }
+  }
+
+  window.requestDatabaseAccess = function() {
+    if (isDatabaseUnlocked) {
+      window.navigateTo('databaseView');
+    } else {
+      window.openDatabaseLoginModal();
+    }
+  };
+
+  window.openDatabaseLoginModal = function() {
+    document.getElementById('dbLoginUser').value = '';
+    document.getElementById('dbLoginPass').value = '';
+    const errBanner = document.getElementById('dbLoginErrorBanner');
+    if (errBanner) errBanner.style.display = 'none';
+    document.getElementById('databaseLoginModal').style.display = 'flex';
+    setTimeout(() => document.getElementById('dbLoginUser').focus(), 50);
+  };
+
+  window.closeDatabaseLoginModal = function() {
+    document.getElementById('databaseLoginModal').style.display = 'none';
+  };
+
+  window.verifyDatabaseLogin = function() {
+    const u = (document.getElementById('dbLoginUser').value || '').trim();
+    const p = (document.getElementById('dbLoginPass').value || '').trim();
+
+    if (u === 'admin' && p === 'Garcia96') {
+      isDatabaseUnlocked = true;
+      updateDatabaseTabUI();
+      window.closeDatabaseLoginModal();
+      window.navigateTo('databaseView');
+      notify('🔓 Acceso concedido a Bases de Datos.', 'success');
+    } else {
+      notify('⛔ Credenciales incorrectas para Bases de Datos.', 'error', 'dbLoginErrorBanner');
+    }
+  };
+
+  window.logoutDatabaseAdmin = function() {
+    isDatabaseUnlocked = false;
+    updateDatabaseTabUI();
+    if (document.getElementById('nav-database')?.checked) {
+      window.navigateTo('portalView');
+    }
+    notify('🔒 Apartado de Bases de Datos bloqueado.', 'info');
+  };
+
+  // --- CONTROL DE SESIÓN Y VALIDACIÓN DE USUARIO PARA DASHBOARD ---
+  function updateDashboardUserUI() {
+    const topBox = document.getElementById('topSessionBox');
+    const topText = document.getElementById('topSessionText');
+    const dashBanner = document.getElementById('dashActiveUserBanner');
+    const tabBtn = document.getElementById('tabDashboardBtn');
+
+    if (currentDashboardUser && currentDashboardUser.username) {
+      const label = `👤 ${currentDashboardUser.username}${currentDashboardUser.puesto ? ' (' + currentDashboardUser.puesto + ')' : ''}`;
+      if (topBox) topBox.style.display = 'flex';
+      if (topText) topText.textContent = label;
+      if (dashBanner) dashBanner.textContent = `👤 Operador en Turno: ${currentDashboardUser.username}${currentDashboardUser.puesto ? ' | Puesto: ' + currentDashboardUser.puesto : ''}`;
+      if (tabBtn) tabBtn.textContent = '📊 Dashboard 🔓';
+    } else {
+      if (topBox) topBox.style.display = 'none';
+      if (dashBanner) dashBanner.textContent = '👤 Sin sesión activa';
+      if (tabBtn) tabBtn.textContent = '📊 Dashboard 🔒';
+    }
+  }
+
+  window.requestDashboardAccess = function() {
+    if (currentDashboardUser && currentDashboardUser.username) {
+      window.navigateTo('dashboardView');
+    } else {
+      window.openDashboardLoginModal(false);
+    }
+  };
+
+  window.openDashboardLoginModal = function(isSwitching = false) {
+    document.getElementById('dashLoginUser').value = '';
+    document.getElementById('dashLoginPass').value = '';
+    const errBanner = document.getElementById('dashLoginErrorBanner');
+    if (errBanner) errBanner.style.display = 'none';
+
+    const hintEl = document.getElementById('dashLoginHint');
+    if (users.length === 0) {
+      hintEl.innerHTML = 'ℹ️ Aún no hay usuarios registrados en <b>Bases de Datos &rarr; Registro de Usuarios</b>. Puedes registrar uno allá o ingresar con <b>admin</b> / <b>Garcia96</b>.';
+    } else {
+      hintEl.innerHTML = `ℹ️ Usuarios activos en Base de Datos: <b>${users.length}</b>. Ingresa con tus credenciales registradas.`;
+    }
+
+    document.getElementById('dashboardLoginModal').style.display = 'flex';
+    setTimeout(() => document.getElementById('dashLoginUser').focus(), 50);
+  };
+
+  window.closeDashboardLoginModal = function() {
+    document.getElementById('dashboardLoginModal').style.display = 'none';
+  };
+
+  window.verifyDashboardLogin = function() {
+    const uInput = (document.getElementById('dashLoginUser').value || '').trim();
+    const pInput = (document.getElementById('dashLoginPass').value || '').trim();
+
+    if (!uInput || !pInput) {
+      notify('⚠️ Ingresa tu Nombre de usuario y Contraseña.', 'error', 'dashLoginErrorBanner');
+      return;
+    }
+
+    let matched = users.find(u => u.username.trim().toLowerCase() === uInput.toLowerCase() && u.password === pInput);
+
+    // Respaldo inicial si aún no se han dado de alta usuarios en la tabla
+    if (!matched && users.length === 0 && uInput === 'admin' && (pInput === 'Garcia96' || pInput === 'admin')) {
+      matched = { username: 'admin', password: pInput, puesto: 'Supervisor de Embarques', id: 'ADM-01' };
+    }
+
+    if (!matched) {
+      notify('⛔ Usuario o contraseña incorrectos. Verifica tus datos en Bases de Datos -> Registro de Usuarios.', 'error', 'dashLoginErrorBanner');
+      return;
+    }
+
+    currentDashboardUser = {
+      username: matched.username,
+      puesto: matched.puesto,
+      id: matched.id
+    };
+    saveJSON('active_dashboard_user', currentDashboardUser);
+    updateDashboardUserUI();
+    window.closeDashboardLoginModal();
+    window.navigateTo('dashboardView');
+    notify(`✅ Bienvenido al Dashboard, ${currentDashboardUser.username}.`, 'success');
+  };
+
+  window.logoutDashboardUser = function() {
+    currentDashboardUser = null;
+    saveJSON('active_dashboard_user', null);
+    updateDashboardUserUI();
+    if (document.getElementById('nav-dashboard')?.checked) {
+      window.navigateTo('portalView');
+    }
+    notify('🔒 Sesión de Dashboard cerrada.', 'info');
+  };
+
+  window.navigateTo = function(viewId) {
+    if (viewId === 'dashboardView' && (!currentDashboardUser || !currentDashboardUser.username)) {
+      window.openDashboardLoginModal(false);
+      return;
+    }
+    if (viewId === 'databaseView' && !isDatabaseUnlocked) {
+      window.openDatabaseLoginModal();
+      return;
+    }
+    const radioId = viewToRadioMap[viewId];
+    if (radioId) {
+      const radioEl = document.getElementById(radioId);
+      if (radioEl) radioEl.checked = true;
+    }
+    window.scrollTo(0, 0);
+    window.refreshViewData(viewId);
+  };
+
+  window.refreshViewData = function(viewId) {
+    setTimeout(() => {
+      if (viewId === 'registerView') {
+        window.populateTransportSelect();
+        window.renderClientBlocks();
+      } else if (viewId === 'dashboardView') {
+        updateDashboardUserUI();
+        window.renderDashboard();
+      } else if (viewId === 'chainView') {
+        window.renderChainView();
+      } else if (viewId === 'trazabilidadView') {
+        window.renderTrazabilidadTable();
+      } else if (viewId === 'databaseView') {
+        window.renderCatalog();
+        window.renderClients();
+        window.renderProducts();
+        window.renderUsers();
+      } else if (viewId === 'historyView') {
+        window.renderTable();
+      }
+    }, 10);
+  };
+
+  window.toggleTheme = function() {
+    const isLight = document.body.getAttribute('data-theme') === 'light';
+    document.body.setAttribute('data-theme', isLight ? 'dark' : 'light');
+    document.getElementById('themeBtn').textContent = isLight ? '☀️ Modo Claro' : '🌙 Modo Oscuro';
+  };
+
+  // --- BASES DE DATOS: USUARIOS (CON RESTRICCIÓN ANTI-DUPLICADOS) ---
+  window.renderUsers = function() {
+    const tbody = document.getElementById('userDbTable');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (users.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-msg">Sin usuarios registrados.</td></tr>';
+      return;
+    }
+    users.forEach((u, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${u.id}</strong></td>
+        <td>${u.username}</td>
+        <td>${u.password}</td>
+        <td>${u.puesto}</td>
+        <td>
+          <button type="button" class="btn-info btn-sm" onclick="window.editUserAction(${idx})">✏️ Editar</button>
+          <button type="button" class="btn-clear btn-sm" onclick="window.deleteUserAction(${idx})">X</button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  };
+
+  window.saveUserAction = function() {
+    const uName = (document.getElementById('catUserNombre').value || '').trim();
+    const uPass = (document.getElementById('catUserPass').value || '').trim();
+    const uPuesto = (document.getElementById('catUserPuesto').value || '').trim();
+    const uId = (document.getElementById('catUserId').value || '').trim();
+
+    if (!uName || !uPass || !uPuesto || !uId) {
+      notify('⚠️ Completa Nombre de usuario, Contraseña, Puesto e ID.', 'error', 'dbStatusBanner');
+      return;
+    }
+
+    const edIdxStr = document.getElementById('editUserIndex').value;
+    const edIdx = edIdxStr !== '' ? Number(edIdxStr) : -1;
+
+    const duplicateUser = users.some((u, i) => i !== edIdx && u.username.trim().toLowerCase() === uName.toLowerCase());
+    if (duplicateUser) {
+      notify('⛔ USUARIO DUPLICADO: Ya existe un registro con el Nombre de usuario "' + uName + '".', 'error', 'dbStatusBanner');
+      return;
+    }
+
+    const duplicateId = users.some((u, i) => i !== edIdx && u.id.trim().toLowerCase() === uId.toLowerCase());
+    if (duplicateId) {
+      notify('⛔ ID DUPLICADO: Ya existe otro usuario registrado con el ID "' + uId + '".', 'error', 'dbStatusBanner');
+      return;
+    }
+
+    const userObj = {
+      username: uName,
+      password: uPass,
+      puesto: uPuesto,
+      id: uId
+    };
+
+    if (edIdx !== -1) {
+      users[edIdx] = userObj;
+    } else {
+      users.push(userObj);
+    }
+
+    saveJSON('users_db_catalog', users);
+    window.resetUserForm();
+    window.renderUsers();
+    notify('✅ Usuario "' + uName + '" guardado en la Base de Datos.', 'success', 'dbStatusBanner');
+  };
+
+  window.editUserAction = function(idx) {
+    const u = users[Number(idx)];
+    if (!u) return;
+    document.getElementById('catUserNombre').value = u.username || '';
+    document.getElementById('catUserPass').value = u.password || '';
+    document.getElementById('catUserPuesto').value = u.puesto || '';
+    document.getElementById('catUserId').value = u.id || '';
+    document.getElementById('editUserIndex').value = String(idx);
+    document.getElementById('btnSaveUser').textContent = '💾 Actualizar Usuario';
+    document.getElementById('btnCancelUser').style.display = 'block';
+  };
+
+  window.deleteUserAction = function(idx) {
+    users.splice(Number(idx), 1);
+    saveJSON('users_db_catalog', users);
+    window.renderUsers();
+    notify('🗑️ Usuario eliminado.', 'info', 'dbStatusBanner');
+  };
+
+  window.resetUserForm = function() {
+    document.getElementById('catUserNombre').value = '';
+    document.getElementById('catUserPass').value = '';
+    document.getElementById('catUserPuesto').value = '';
+    document.getElementById('catUserId').value = '';
+    document.getElementById('editUserIndex').value = '';
+    document.getElementById('btnSaveUser').textContent = '💾 Guardar Usuario';
+    document.getElementById('btnCancelUser').style.display = 'none';
+  };
+
+  // --- BASES DE DATOS: PRODUCTOS ---
+  window.renderProducts = function() {
+    const tbody = document.getElementById('productTable');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (products.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="empty-msg">Sin productos registrados.</td></tr>';
+      return;
+    }
+    products.forEach((prod, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${prod.name}</strong></td>
+        <td>${prod.codigo !== '' ? prod.codigo : '---'}</td>
+        <td>${prod.conjunto !== '' ? prod.conjunto : '---'}</td>
+        <td>
+          <button type="button" class="btn-info btn-sm" onclick="window.editProductAction(${idx})">✏️ Editar</button>
+          <button type="button" class="btn-clear btn-sm" onclick="window.deleteProductAction(${idx})">X</button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  };
+
+  window.saveProductAction = function() {
+    const prodInput = document.getElementById('catProducto');
+    const codInput = document.getElementById('catCodigoProducto');
+    const conjInput = document.getElementById('catConjuntoProducto');
+
+    const pName = (prodInput ? prodInput.value : '').trim();
+    const pCodigo = (codInput ? codInput.value : '').trim();
+    const pConjunto = (conjInput ? conjInput.value : '').trim();
+
+    if (!pName) {
+      notify('⚠️ Ingresa el Nombre del Artículo / Recurso.', 'error', 'dbStatusBanner');
+      return;
+    }
+
+    if (pCodigo !== '' && isNaN(Number(pCodigo))) {
+      notify('⚠️ El Código de artículos debe ser un valor numérico.', 'error', 'dbStatusBanner');
+      return;
+    }
+
+    if (pConjunto !== '' && isNaN(Number(pConjunto))) {
+      notify('⚠️ El Conjunto de artículos debe ser un valor numérico.', 'error', 'dbStatusBanner');
+      return;
+    }
+
+    const edIdxStr = document.getElementById('editProductIndex').value;
+    const edIdx = edIdxStr !== '' ? Number(edIdxStr) : -1;
+
+    const duplicateName = products.some((p, i) => i !== edIdx && p.name.trim().toLowerCase() === pName.toLowerCase());
+    if (duplicateName) {
+      notify('⛔ REGISTRO DUPLICADO: Ya existe un producto con el nombre "' + pName + '".', 'error', 'dbStatusBanner');
+      return;
+    }
+
+    if (pCodigo !== '') {
+      const duplicateCode = products.some((p, i) => i !== edIdx && p.codigo !== '' && Number(p.codigo) === Number(pCodigo));
+      if (duplicateCode) {
+        notify('⛔ CÓDIGO DUPLICADO: Ya existe otro producto registrado con el Código de artículos "' + pCodigo + '".', 'error', 'dbStatusBanner');
+        return;
+      }
+    }
+
+    const prodObj = {
+      name: pName,
+      codigo: pCodigo,
+      conjunto: pConjunto
+    };
+
+    if (edIdx !== -1) {
+      products[edIdx] = prodObj;
+    } else {
+      products.push(prodObj);
+    }
+
+    saveJSON('products_catalog', products);
+    window.resetProductForm();
+    window.renderProducts();
+    window.renderClientBlocks();
+    notify('✅ Producto "' + pName + '" guardado en la Base de Datos.', 'success', 'dbStatusBanner');
+  };
+
+  window.editProductAction = function(idx) {
+    const prod = products[Number(idx)];
+    if (!prod) return;
+    document.getElementById('catProducto').value = prod.name || '';
+    document.getElementById('catCodigoProducto').value = prod.codigo !== undefined ? prod.codigo : '';
+    document.getElementById('catConjuntoProducto').value = prod.conjunto !== undefined ? prod.conjunto : '';
+    document.getElementById('editProductIndex').value = String(idx);
+    document.getElementById('btnSaveProduct').textContent = '💾 Actualizar Producto';
+    document.getElementById('btnCancelProduct').style.display = 'block';
+  };
+
+  window.deleteProductAction = function(idx) {
+    products.splice(Number(idx), 1);
+    saveJSON('products_catalog', products);
+    window.renderProducts();
+    window.renderClientBlocks();
+    notify('🗑️ Producto eliminado.', 'info', 'dbStatusBanner');
+  };
+
+  window.resetProductForm = function() {
+    document.getElementById('catProducto').value = '';
+    document.getElementById('catCodigoProducto').value = '';
+    document.getElementById('catConjuntoProducto').value = '';
+    document.getElementById('editProductIndex').value = '';
+    document.getElementById('btnSaveProduct').textContent = '💾 Guardar Producto';
+    document.getElementById('btnCancelProduct').style.display = 'none';
+  };
+
+  // --- BASES DE DATOS: CLIENTES ---
+  window.renderClients = function() {
+    const tbody = document.getElementById('clientTable');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (clients.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="empty-msg">Sin clientes registrados.</td></tr>';
+      return;
+    }
+    clients.forEach((c, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${c.name}</strong></td>
+        <td>${c.num || '---'}</td>
+        <td>${c.categoria || '---'}</td>
+        <td>
+          <button type="button" class="btn-info btn-sm" onclick="window.editClientAction(${idx})">✏️ Editar</button>
+          <button type="button" class="btn-clear btn-sm" onclick="window.deleteClientAction(${idx})">X</button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  };
+
+  window.saveClientAction = function() {
+    const name = (document.getElementById('catCliente').value || '').trim();
+    const num = (document.getElementById('catNumCliente').value || '').trim();
+    const categoria = document.getElementById('catCategoriaCliente').value;
+
+    if (!name) {
+      notify('⚠️ Ingresa el Nombre del Cliente.', 'error', 'dbStatusBanner');
+      return;
+    }
+
+    const edIdxStr = document.getElementById('editClientIndex').value;
+    const edIdx = edIdxStr !== '' ? Number(edIdxStr) : -1;
+
+    const duplicateName = clients.some((c, i) => i !== edIdx && c.name.trim().toLowerCase() === name.toLowerCase());
+    if (duplicateName) {
+      notify('⛔ REGISTRO DUPLICADO: Ya existe un cliente con el nombre "' + name + '".', 'error', 'dbStatusBanner');
+      return;
+    }
+
+    if (num !== '') {
+      const duplicateNum = clients.some((c, i) => i !== edIdx && (c.num || '').trim().toLowerCase() === num.toLowerCase());
+      if (duplicateNum) {
+        notify('⛔ NÚMERO DUPLICADO: Ya existe otro cliente con el Número "' + num + '".', 'error', 'dbStatusBanner');
+        return;
+      }
+    }
+
+    const obj = {
+      name: name,
+      num: num,
+      categoria: categoria
+    };
+
+    if (edIdx !== -1) {
+      clients[edIdx] = obj;
+    } else {
+      clients.push(obj);
+    }
+
+    saveJSON('clients_catalog', clients);
+    window.resetClientForm();
+    window.renderClients();
+    window.renderClientBlocks();
+    notify('✅ Cliente "' + name + '" guardado en la Base de Datos.', 'success', 'dbStatusBanner');
+  };
+
+  window.editClientAction = function(idx) {
+    const c = clients[Number(idx)];
+    if (!c) return;
+    document.getElementById('catCliente').value = c.name;
+    document.getElementById('catNumCliente').value = c.num || '';
+    document.getElementById('catCategoriaCliente').value = c.categoria || '';
+    document.getElementById('editClientIndex').value = String(idx);
+    document.getElementById('btnSaveClient').textContent = '💾 Actualizar Cliente';
+    document.getElementById('btnCancelClient').style.display = 'block';
+  };
+
+  window.deleteClientAction = function(idx) {
+    clients.splice(Number(idx), 1);
+    saveJSON('clients_catalog', clients);
+    window.renderClients();
+    window.renderClientBlocks();
+    notify('🗑️ Cliente eliminado.', 'info', 'dbStatusBanner');
+  };
+
+  window.resetClientForm = function() {
+    document.getElementById('catCliente').value = '';
+    document.getElementById('catNumCliente').value = '';
+    document.getElementById('catCategoriaCliente').value = '';
+    document.getElementById('editClientIndex').value = '';
+    document.getElementById('btnSaveClient').textContent = '💾 Guardar Cliente';
+    document.getElementById('btnCancelClient').style.display = 'none';
+  };
+
+  // --- BASES DE DATOS: TRANSPORTE Y CHOFERES ---
+  window.renderCatalog = function() {
+    const tbody = document.getElementById('catalogTable');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    let count = 0;
+    const keys = Object.keys(catalog);
+    keys.forEach((linea) => {
+      if (Array.isArray(catalog[linea])) {
+        catalog[linea].forEach((item, idx) => {
+          count++;
+          const tr = document.createElement('tr');
+          const td1 = document.createElement('td'); td1.textContent = linea;
+          const td2 = document.createElement('td'); td2.textContent = item.chofer;
+          const td3 = document.createElement('td'); td3.textContent = item.placas;
+          const td4 = document.createElement('td');
+
+          const btnEdit = document.createElement('button');
+          btnEdit.type = 'button';
+          btnEdit.className = 'btn-info btn-sm';
+          btnEdit.textContent = '✏️ Editar';
+          btnEdit.style.marginRight = '4px';
+          btnEdit.onclick = function() { window.editTransportAction(linea, idx); };
+
+          const btnDel = document.createElement('button');
+          btnDel.type = 'button';
+          btnDel.className = 'btn-clear btn-sm';
+          btnDel.textContent = 'X';
+          btnDel.onclick = function() { window.deleteTransportAction(linea, idx); };
+
+          td4.appendChild(btnEdit);
+          td4.appendChild(btnDel);
+          tr.appendChild(td1);
+          tr.appendChild(td2);
+          tr.appendChild(td3);
+          tr.appendChild(td4);
+          tbody.appendChild(tr);
+        });
+      }
+    });
+    if (count === 0) tbody.innerHTML = '<tr><td colspan="4" class="empty-msg">Sin líneas de transporte registradas.</td></tr>';
+  };
+
+  window.saveTransportAction = function() {
+    const lin = (document.getElementById('catTransporte').value || '').trim();
+    const ch = (document.getElementById('catChofer').value || '').trim();
+    const pl = (document.getElementById('catPlacas').value || '').trim();
+
+    if (!lin || !ch || !pl) {
+      notify('⚠️ Completa Línea de Transporte, Nombre del Chofer y Placas.', 'error', 'dbStatusBanner');
+      return;
+    }
+
+    const oldLin = document.getElementById('editCatalogLineaOld').value;
+    const edIdxStr = document.getElementById('editCatalogIndex').value;
+    const edIdx = edIdxStr !== '' ? Number(edIdxStr) : -1;
+
+    let targetLineaKey = lin;
+    for (const existingKey in catalog) {
+      if (existingKey.trim().toLowerCase() === lin.toLowerCase()) {
+        targetLineaKey = existingKey;
+        break;
+      }
+    }
+
+    for (const lineaKey in catalog) {
+      if (!Array.isArray(catalog[lineaKey])) continue;
+      for (let i = 0; i < catalog[lineaKey].length; i++) {
+        if (edIdx !== -1 && lineaKey === oldLin && i === edIdx) continue;
+
+        const item = catalog[lineaKey][i];
+        const sameLinea = lineaKey.trim().toLowerCase() === lin.toLowerCase();
+        const sameChofer = (item.chofer || '').trim().toLowerCase() === ch.toLowerCase();
+        const samePlacas = (item.placas || '').trim().toLowerCase() === pl.toLowerCase();
+
+        if (sameLinea && sameChofer && samePlacas) {
+          notify('⛔ REGISTRO DUPLICADO: Este transporte, chofer y placas ya están registrados.', 'error', 'dbStatusBanner');
+          return;
+        }
+        if (samePlacas) {
+          notify('⛔ PLACAS DUPLICADAS: Las placas "' + pl + '" ya están asignadas a ' + item.chofer + ' (' + lineaKey + ').', 'error', 'dbStatusBanner');
+          return;
+        }
+      }
+    }
+
+    if (edIdx !== -1 && oldLin !== '' && catalog[oldLin]) {
+      catalog[oldLin].splice(edIdx, 1);
+      if (catalog[oldLin].length === 0) delete catalog[oldLin];
+    }
+
+    if (!catalog[targetLineaKey]) catalog[targetLineaKey] = [];
+    catalog[targetLineaKey].push({ chofer: ch, placas: pl });
+
+    saveJSON('transport_catalog', catalog);
+    window.resetTransportForm();
+    window.renderCatalog();
+    window.populateTransportSelect();
+    notify('✅ Transporte "' + targetLineaKey + ' - ' + ch + '" guardado en la Base de Datos.', 'success', 'dbStatusBanner');
+  };
+
+  window.editTransportAction = function(lin, idx) {
+    if (!catalog[lin] || !catalog[lin][idx]) return;
+    const it = catalog[lin][idx];
+    document.getElementById('catTransporte').value = lin;
+    document.getElementById('catChofer').value = it.chofer;
+    document.getElementById('catPlacas').value = it.placas;
+    document.getElementById('editCatalogLineaOld').value = lin;
+    document.getElementById('editCatalogIndex').value = String(idx);
+    document.getElementById('btnSaveTransport').textContent = '💾 Actualizar Transporte';
+    document.getElementById('btnCancelTransport').style.display = 'block';
+  };
+
+  window.deleteTransportAction = function(lin, idx) {
+    if (!catalog[lin]) return;
+    catalog[lin].splice(Number(idx), 1);
+    if (catalog[lin].length === 0) delete catalog[lin];
+    saveJSON('transport_catalog', catalog);
+    window.renderCatalog();
+    window.populateTransportSelect();
+    notify('🗑️ Transporte eliminado.', 'info', 'dbStatusBanner');
+  };
+
+  window.resetTransportForm = function() {
+    document.getElementById('catTransporte').value = '';
+    document.getElementById('catChofer').value = '';
+    document.getElementById('catPlacas').value = '';
+    document.getElementById('editCatalogLineaOld').value = '';
+    document.getElementById('editCatalogIndex').value = '';
+    document.getElementById('btnSaveTransport').textContent = '💾 Guardar Transporte';
+    document.getElementById('btnCancelTransport').style.display = 'none';
+  };
+
+  // --- FORMULARIO DE REGISTRO DE ENVÍO ---
+  window.populateTransportSelect = function() {
+    const select = document.getElementById('transporte');
+    if (!select) return;
+    const prev = select.value;
+    select.innerHTML = '<option value="">-- Selecciona una línea --</option>';
+    const dl = document.getElementById('lineasList');
+    if (dl) dl.innerHTML = '';
+    for (const linea in catalog) {
+      const opt = document.createElement('option');
+      opt.value = linea; opt.textContent = linea;
+      select.appendChild(opt);
+      if (dl) {
+        const dOpt = document.createElement('option');
+        dOpt.value = linea;
+        dl.appendChild(dOpt);
+      }
+    }
+    if (prev && catalog[prev]) select.value = prev;
+    window.onSelectTransporte();
+  };
+
+  window.onSelectTransporte = function() {
+    const tSel = document.getElementById('transporte');
+    const cSel = document.getElementById('chofer');
+    const pSel = document.getElementById('placas');
+    if (!tSel || !cSel || !pSel) return;
+    const linea = tSel.value;
+    cSel.innerHTML = '<option value="">-- Selecciona chofer --</option>';
+    pSel.innerHTML = '<option value="">-- Selecciona placas --</option>';
+    if (!linea || !catalog[linea]) {
+      cSel.disabled = true; pSel.disabled = true;
+      return;
+    }
+    cSel.disabled = false; pSel.disabled = false;
+    const choferes = [...new Set(catalog[linea].map(i => i.chofer))];
+    choferes.forEach(ch => {
+      const opt = document.createElement('option');
+      opt.value = ch; opt.textContent = ch;
+      cSel.appendChild(opt);
+    });
+    catalog[linea].forEach(i => {
+      const opt = document.createElement('option');
+      opt.value = i.placas; opt.textContent = i.placas;
+      pSel.appendChild(opt);
+    });
+    if (choferes.length === 1) {
+      cSel.value = choferes[0];
+      window.onSelectChofer();
+    }
+  };
+
+  window.onSelectChofer = function() {
+    const linea = document.getElementById('transporte').value;
+    const chofer = document.getElementById('chofer').value;
+    const pSel = document.getElementById('placas');
+    if (!linea || !chofer || !catalog[linea]) return;
+    const matches = catalog[linea].filter(i => i.chofer === chofer);
+    pSel.innerHTML = '<option value="">-- Selecciona placas --</option>';
+    matches.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.placas; opt.textContent = m.placas;
+      pSel.appendChild(opt);
+    });
+    if (matches.length === 1) pSel.value = matches[0].placas;
+  };
+
+  window.createItemRow = function(selectedProduct = '', qtyVal = '') {
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    let prodOpts = '<option value="">-- Selecciona Artículo --</option>';
+    getProductNamesList().forEach(pName => {
+      const sel = pName === selectedProduct ? 'selected' : '';
+      prodOpts += `<option value="${pName}" ${sel}>${pName}</option>`;
+    });
+    row.innerHTML = `
+      <select class="art-select">${prodOpts}</select>
+      <input type="number" class="art-qty" min="0.01" step="any" placeholder="Toneladas (Ton)" value="${qtyVal}" oninput="window.calcularCostosTotal()">
+      <button type="button" class="btn-clear btn-sm" onclick="window.removeClientItemRow(this)">🗑️</button>
+    `;
+    return row;
+  };
+
+  window.addClientItemRow = function(btn) {
+    const box = btn.parentElement.querySelector('.client-items-box');
+    if (box && box.children.length < 15) {
+      box.appendChild(window.createItemRow());
+    }
+  };
+
+  window.removeClientItemRow = function(btn) {
+    const box = btn.parentElement.parentElement;
+    if (box && box.children.length > 1) {
+      btn.parentElement.remove();
+      window.calcularCostosTotal();
+    } else {
+      notify('Debe existir al menos un artículo por cliente.', 'error');
+    }
+  };
+
+  window.renderClientBlocks = function() {
+    const container = document.getElementById('clientsConfigContainer');
+    if (!container) return;
+    const count = parseInt(document.getElementById('numClientes').value) || 1;
+    const saved = [];
+    container.querySelectorAll('.client-block').forEach(b => {
+      const cName = b.querySelector('.client-name-input')?.value || '';
+      const items = [];
+      b.querySelectorAll('.item-row').forEach(r => {
+        items.push({
+          product: r.querySelector('.art-select')?.value || '',
+          qty: r.querySelector('.art-qty')?.value || ''
+        });
+      });
+      saved.push({ name: cName, items });
+    });
+
+    container.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+      const data = saved[i] || { name: '', items: [{ product: '', qty: '' }] };
+      const block = document.createElement('div');
+      block.className = 'client-block';
+
+      let clientOpts = '<option value="">-- Selecciona Cliente Destino --</option>';
+      clients.forEach(c => {
+        const label = c.num ? `${c.name} (${c.num})` : c.name;
+        const sel = c.name === data.name ? 'selected' : '';
+        clientOpts += `<option value="${c.name}" ${sel}>${label}</option>`;
+      });
+
+      block.innerHTML = `
+        <div class="client-block-header">Cliente Destino #${i + 1}</div>
+        <div class="form-group">
+          <label>Nombre del Cliente</label>
+          <select class="client-name-input">${clientOpts}</select>
+        </div>
+        <div class="form-group">
+          <label>Artículos y Toneladas para este Cliente</label>
+          <div class="dynamic-items-box client-items-box"></div>
+          <button type="button" class="btn-secondary btn-sm" onclick="window.addClientItemRow(this)" style="margin-top:8px; width:fit-content;">➕ Agregar Artículo</button>
+        </div>
+      `;
+      const box = block.querySelector('.client-items-box');
+      (data.items.length ? data.items : [{ product: '', qty: '' }]).forEach(it => {
+        box.appendChild(window.createItemRow(it.product, it.qty));
+      });
+      container.appendChild(block);
+    }
+  };
+
+  window.calcularCostosTotal = function() {
+    let totalTon = 0;
+    document.querySelectorAll('.art-qty').forEach(inp => {
+      totalTon += parseFloat(inp.value) || 0;
+    });
+    const tarifa = parseFloat(document.getElementById('tarifaManiobra')?.value) || 0;
+    const total = totalTon * tarifa;
+    const out = document.getElementById('costoManiobra');
+    if (out) out.value = total > 0 ? `$${total.toFixed(2)}` : '';
+  };
+
+  window.saveShippingAction = function() {
+    const ref = (document.getElementById('referencia').value || '').trim();
+    const prio = document.getElementById('prioridad').value;
+    const trans = document.getElementById('transporte').value;
+    const chof = document.getElementById('chofer').value;
+    const plac = document.getElementById('placas').value;
+
+    if (!ref || !trans || !chof || !plac) {
+      notify('⚠️ Completa Referencia, Línea de Transporte, Chofer y Placas.', 'error', 'regStatusBanner');
+      return;
+    }
+
+    const blocks = document.querySelectorAll('.client-block');
+    let parsed = [], texts = [], cNames = [], totalQty = 0;
+    for (const b of blocks) {
+      const cName = b.querySelector('.client-name-input').value.trim();
+      if (!cName) {
+        notify('⚠️ Selecciona el cliente destino en todos los bloques.', 'error', 'regStatusBanner');
+        return;
+      }
+      if (!cNames.includes(cName)) cNames.push(cName);
+      for (const r of b.querySelectorAll('.item-row')) {
+        const art = r.querySelector('.art-select').value;
+        const q = parseFloat(r.querySelector('.art-qty').value);
+        if (!art || isNaN(q) || q <= 0) {
+          notify('⚠️ Selecciona el artículo e ingresa una cantidad en toneladas mayor a 0.', 'error', 'regStatusBanner');
+          return;
+        }
+        parsed.push({ name: art, qty: q, client: cName });
+        texts.push(`[${cName}] ${art} (${q} Ton)`);
+        totalQty += q;
+      }
+    }
+
+    const cEnvio = Number(document.getElementById('costoEnvio').value) || 0;
+    const tMan = Number(document.getElementById('tarifaManiobra').value) || 0;
+
+    const newOrd = {
+      id: 'ORD-' + Date.now(),
+      fecha: new Date().toLocaleDateString('es-MX'),
+      referencia: ref,
+      prioridad: prio,
+      transporte: trans,
+      chofer: chof,
+      placas: plac,
+      clientes: cNames.join(', '),
+      articulosParsed: parsed,
+      articulosTexto: texts.join(' | '),
+      cantidadTotal: totalQty,
+      costoTotal: cEnvio + (totalQty * tMan),
+      zone: 'por_ingresar',
+      slot: null,
+      timePatioTotal: 0,
+      timeAndenTotal: 0
+    };
+
+    activeOrders.push(newOrd);
+    saveJSON('active_orders', activeOrders);
+
+    document.getElementById('referencia').value = '';
+    document.getElementById('tarifaEnvio').value = '';
+    document.getElementById('costoEnvio').value = '';
+    document.getElementById('tarifaManiobra').value = '';
+    document.getElementById('costoManiobra').value = '';
+    document.getElementById('numClientes').value = '1';
+    window.renderClientBlocks();
+
+    notify('✅ Envío registrado con éxito.', 'success');
+    window.requestDashboardAccess();
+  };
+
+  // --- DASHBOARD ---
+  function formatSeconds(secs) {
+    if (!secs || secs < 0) secs = 0;
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}m ${s < 10 ? '0' : ''}${s}s`;
+  }
+
+  window.moveToPatioAction = function(id) {
+    const ord = activeOrders.find(o => o.id === id);
+    if (!ord) return;
+    const used = activeOrders.filter(o => o.zone === 'patio').map(o => Number(o.slot));
+    let free = null;
+    for (let i = 1; i <= 9; i++) { if (!used.includes(i)) { free = i; break; } }
+    if (!free) { notify('Patio lleno (9/9 ocupados).', 'error'); return; }
+    ord.zone = 'patio'; ord.slot = free; ord.timePatioStart = Date.now();
+    saveJSON('active_orders', activeOrders);
+    window.renderDashboard();
+    notify(`Unidad asignada a Patio #${free}`, 'success');
+  };
+
+  window.removeFromPatioAction = function(id) {
+    const ord = activeOrders.find(o => o.id === id);
+    if (!ord) return;
+    if (ord.timePatioStart) ord.timePatioTotal = (ord.timePatioTotal || 0) + Math.floor((Date.now() - ord.timePatioStart) / 1000);
+    ord.zone = 'por_ingresar'; ord.slot = null; ord.timePatioStart = null;
+    saveJSON('active_orders', activeOrders);
+    window.renderDashboard();
+  };
+
+  window.openAssignAndenAction = function(id) {
+    const used = activeOrders.filter(o => o.zone === 'andenes').map(o => Number(o.slot));
+    const sel = document.getElementById('selectTargetAnden');
+    sel.innerHTML = '';
+    for (let i = 1; i <= 6; i++) {
+      if (!used.includes(i)) sel.innerHTML += `<option value="${i}">Embarques - Andén #${i}</option>`;
+    }
+    for (let i = 1; i <= 4; i++) {
+      if (!used.includes(i + 6)) sel.innerHTML += `<option value="${i + 6}">Bodega 27 - Andén #${i}</option>`;
+    }
+    if (!sel.innerHTML) { notify('Todos los andenes están ocupados.', 'error'); return; }
+    document.getElementById('assignAndenOrderId').value = id;
+    document.getElementById('assignAndenModal').style.display = 'flex';
+  };
+
+  window.closeAssignAndenModal = function() {
+    document.getElementById('assignAndenModal').style.display = 'none';
+  };
+
+  window.confirmAssignAndenAction = function() {
+    const ordId = document.getElementById('assignAndenOrderId').value;
+    const slot = Number(document.getElementById('selectTargetAnden').value);
+    const ord = activeOrders.find(o => o.id === ordId);
+    if (ord && slot) {
+      if (ord.timePatioStart) {
+        ord.timePatioTotal = (ord.timePatioTotal || 0) + Math.floor((Date.now() - ord.timePatioStart) / 1000);
+        ord.timePatioStart = null;
+      }
+      ord.zone = 'andenes'; ord.slot = slot; ord.timeAndenStart = Date.now();
+      saveJSON('active_orders', activeOrders);
+      window.renderDashboard();
+      notify('Unidad ingresada a Andén correctamente.', 'success');
+    }
+    document.getElementById('assignAndenModal').style.display = 'none';
+  };
+
+  window.removeFromAndenAction = function(id) {
+    const ord = activeOrders.find(o => o.id === id);
+    if (!ord) return;
+    const used = activeOrders.filter(o => o.zone === 'patio').map(o => Number(o.slot));
+    let free = null;
+    for (let i = 1; i <= 9; i++) { if (!used.includes(i)) { free = i; break; } }
+    if (!free) { notify('No hay espacio disponible en Patio.', 'error'); return; }
+    if (ord.timeAndenStart) ord.timeAndenTotal = (ord.timeAndenTotal || 0) + Math.floor((Date.now() - ord.timeAndenStart) / 1000);
+    ord.zone = 'patio'; ord.slot = free; ord.timeAndenStart = null; ord.timePatioStart = Date.now();
+    saveJSON('active_orders', activeOrders);
+    window.renderDashboard();
+  };
+
+  window.finalizeShipmentAction = function(id) {
+    const index = activeOrders.findIndex(o => o.id === id);
+    if (index === -1) return;
+    const ord = activeOrders[index];
+    if (ord.timeAndenStart) ord.timeAndenTotal = (ord.timeAndenTotal || 0) + Math.floor((Date.now() - ord.timeAndenStart) / 1000);
+    ord.tiempoPatioStr = formatSeconds(ord.timePatioTotal || 0);
+    ord.tiempoAndenStr = formatSeconds(ord.timeAndenTotal || 0);
+    shipments.push(ord);
+    activeOrders.splice(index, 1);
+    saveJSON('shipments_data', shipments);
+    saveJSON('active_orders', activeOrders);
+    window.renderDashboard();
+    window.renderTable();
+    notify('Embarque finalizado y enviado al Historial.', 'success');
+  };
+
+  window.resetAllOrdersAction = function() {
+    activeOrders.forEach(o => {
+      o.zone = 'por_ingresar'; o.slot = null;
+      o.timePatioStart = null; o.timePatioTotal = 0;
+      o.timeAndenStart = null; o.timeAndenTotal = 0;
+    });
+    saveJSON('active_orders', activeOrders);
+    window.renderDashboard();
+    notify('Todas las órdenes regresaron a Por ingresar.', 'info');
+  };
+
+  function createOrderCard(ord) {
+    const card = document.createElement('div');
+    card.className = 'order-card';
+    const pText = ord.prioridad || 'GENERAL';
+    const pClass = pText === 'URGENTE' ? 'priority-urgente' : pText === 'ALTA' ? 'priority-alta' : 'priority-general';
+
+    let timerHtml = '';
+    if (ord.zone === 'patio') {
+      const el = ord.timePatioStart ? Math.floor((Date.now() - ord.timePatioStart) / 1000) : 0;
+      timerHtml = `<div class="timer-badge">⏱️ Patio: ${formatSeconds((ord.timePatioTotal || 0) + el)}</div>`;
+    } else if (ord.zone === 'andenes') {
+      const pEl = ord.timePatioTotal || 0;
+      const aEl = ord.timeAndenStart ? Math.floor((Date.now() - ord.timeAndenStart) / 1000) : 0;
+      timerHtml = `<div class="timer-badge">⏱️ Patio: ${formatSeconds(pEl)} | Andén: ${formatSeconds((ord.timeAndenTotal || 0) + aEl)}</div>`;
+    }
+
+    let btns = '';
+    if (ord.zone === 'por_ingresar') {
+      btns = `<button type="button" class="btn-secondary btn-sm" onclick="window.moveToPatioAction('${ord.id}')">Asignar Patio 🅿️</button>`;
+    } else if (ord.zone === 'patio') {
+      btns = `
+        <button type="button" class="btn-warning btn-sm" onclick="window.removeFromPatioAction('${ord.id}')">Quitar de patio ⬅️</button>
+        <button type="button" class="btn-info btn-sm" onclick="window.openAssignAndenAction('${ord.id}')">Asignar andén 🚪</button>
+      `;
+    } else if (ord.zone === 'andenes') {
+      const defaultAnden = ord.slot <= 6 ? `Anden ${ord.slot}` : `Anden B${ord.slot - 6}`;
+      btns = `
+        <button type="button" class="btn-warning btn-sm" onclick="window.removeFromAndenAction('${ord.id}')">Quitar de andén ⬅️</button>
+        <button type="button" class="btn-excel btn-sm" onclick="window.openTrazabilidadForOrder('${ord.id}', '${defaultAnden}')">📋 Trazabilidad</button>
+        <button type="button" class="btn-info btn-sm" onclick="window.finalizeShipmentAction('${ord.id}')">✅ Finalizar</button>
+      `;
+    }
+
+    card.innerHTML = `
+      <div class="order-header">
+        <span>Ref: ${ord.referencia}</span>
+        <span class="priority-badge ${pClass}">${pText}</span>
+      </div>
+      <div class="order-details">
+        <span><b>Transporte:</b> ${ord.transporte}</span>
+        <span><b>Chofer:</b> ${ord.chofer} (${ord.placas})</span>
+        <span><b>Cliente(s):</b> ${ord.clientes}</span>
+        <span><b>Total Ton:</b> ${ord.cantidadTotal} Ton</span>
+      </div>
+      ${timerHtml}
+      <div class="card-controls">${btns}</div>
+    `;
+    return card;
+  }
+
+  window.renderDashboard = function() {
+    const zIn = document.getElementById('zonePorIngresar');
+    const zPa = document.getElementById('zonePatio');
+    const zAn = document.getElementById('zoneAndenes');
+    if (!zIn || !zPa || !zAn) return;
+
+    zIn.innerHTML = ''; zPa.innerHTML = ''; zAn.innerHTML = '';
+    let cIn = 0, cPa = 0, cAn = 0;
+
+    activeOrders.filter(o => o.zone === 'por_ingresar').forEach(o => {
+      cIn++;
+      zIn.appendChild(createOrderCard(o));
+    });
+    if (cIn === 0) zIn.innerHTML = '<div class="empty-msg">Sin órdenes por ingresar.</div>';
+    document.getElementById('countPorIngresar').textContent = cIn;
+
+    for (let i = 1; i <= 9; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'slot-box';
+      slot.innerHTML = `<div class="slot-label">PATIO #${i}</div>`;
+      const ord = activeOrders.find(o => o.zone === 'patio' && Number(o.slot) === i);
+      if (ord) { cPa++; slot.appendChild(createOrderCard(ord)); }
+      else { slot.innerHTML += `<span style="font-size:12px; color:var(--text-secondary); text-align:center;">Disponible</span>`; }
+      zPa.appendChild(slot);
+    }
+    document.getElementById('countPatio').textContent = `${cPa}/9`;
+
+    const tGen = document.createElement('div');
+    tGen.className = 'sub-section-title'; tGen.textContent = 'Embarques (1 - 6)';
+    zAn.appendChild(tGen);
+
+    for (let i = 1; i <= 6; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'slot-box';
+      slot.innerHTML = `<div class="slot-label">EMBARQUES #${i}</div>`;
+      const ord = activeOrders.find(o => o.zone === 'andenes' && Number(o.slot) === i);
+      if (ord) { cAn++; slot.appendChild(createOrderCard(ord)); }
+      else { slot.innerHTML += `<span style="font-size:12px; color:var(--text-secondary); text-align:center;">Disponible</span>`; }
+      zAn.appendChild(slot);
+    }
+
+    const tB27 = document.createElement('div');
+    tB27.className = 'sub-section-title'; tB27.textContent = 'Bodega 27 (1 - 4)';
+    zAn.appendChild(tB27);
+
+    for (let i = 1; i <= 4; i++) {
+      const slotId = i + 6;
+      const slot = document.createElement('div');
+      slot.className = 'slot-box';
+      slot.innerHTML = `<div class="slot-label">BODEGA 27 - ANDÉN #${i}</div>`;
+      const ord = activeOrders.find(o => o.zone === 'andenes' && Number(o.slot) === slotId);
+      if (ord) { cAn++; slot.appendChild(createOrderCard(ord)); }
+      else { slot.innerHTML += `<span style="font-size:12px; color:var(--text-secondary); text-align:center;">Disponible</span>`; }
+      zAn.appendChild(slot);
+    }
+    document.getElementById('countAndenes').textContent = `${cAn}/10`;
+  };
+
+  // --- TRAZABILIDAD Y LOTES (SIN MOSTRAR ID DE USUARIO EN LA HOJA DE TRAZABILIDAD) ---
+  function getShipmentProductRules() {
+    const rules = {};
+    const arts = (currentTrazOrder && currentTrazOrder.articulosParsed) ? currentTrazOrder.articulosParsed : [];
+    arts.forEach(a => {
+      const pName = (a.name || '').trim();
+      if (!pName) return;
+      if (!rules[pName]) {
+        rules[pName] = {
+          targetQty: 0,
+          allowedClients: new Set(),
+          maxLotsAllowed: MAX_LOTES_PER_RESOURCE
+        };
+      }
+      rules[pName].targetQty += Number(a.qty) || 0;
+      if (a.client) rules[pName].allowedClients.add(a.client);
+    });
+
+    for (const pName in rules) {
+      const target = rules[pName].targetQty;
+      if (target >= 1 && Number.isInteger(target) && target < MAX_LOTES_PER_RESOURCE) {
+        rules[pName].maxLotsAllowed = Math.max(1, Math.min(MAX_LOTES_PER_RESOURCE, Math.floor(target)));
+      } else {
+        rules[pName].maxLotsAllowed = MAX_LOTES_PER_RESOURCE;
+      }
+    }
+    return rules;
+  }
+
+  // Devuelve la firma limpia del usuario realizador SIN mostrar el ID de usuario
+  function getActiveUserSignatureStr() {
+    if (currentDashboardUser && currentDashboardUser.username) {
+      return currentDashboardUser.puesto
+        ? `${currentDashboardUser.username} (${currentDashboardUser.puesto})`
+        : currentDashboardUser.username;
+    }
+    return 'Sin usuario asignado';
+  }
+
+  // Limpia cualquier cadena previa por si algún registro antiguo tenía "(ID: ...)" guardado
+  function cleanSignatureWithoutId(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/\s*-\s*ID:\s*[^)]+/gi, '')
+      .replace(/\(\s*ID:\s*[^)]+\)/gi, '')
+      .trim();
+  }
+
+  window.openTrazabilidadForOrder = function(orderId, defaultAnden) {
+    if (!currentDashboardUser || !currentDashboardUser.username) {
+      notify('⚠️ Debes iniciar sesión en el Dashboard para registrar trazabilidad.', 'error');
+      window.openDashboardLoginModal(false);
+      return;
+    }
+
+    const ord = activeOrders.find(o => o.id === orderId);
+    if (!ord) return;
+    const existing = trazabilidadRecords.find(r => r.numEnvio === ord.referencia);
+    if (existing) {
+      window.openTrazabilidadForEdit(existing.id);
+      return;
+    }
+    currentTrazOrder = ord;
+    tempLotes = [];
+    document.getElementById('trazRecordId').value = '';
+    document.getElementById('trazOrderRef').value = ord.id;
+    document.getElementById('trazAnden').value = defaultAnden || 'Anden 1';
+    document.getElementById('trazNumEnvio').value = ord.referencia;
+    document.getElementById('trazAlmacen').value = '2OCC';
+    document.getElementById('trazFecha').value = new Date().toLocaleDateString('es-MX');
+    document.getElementById('trazTransporte').value = ord.transporte;
+    document.getElementById('trazChofer').value = ord.chofer || '';
+    document.getElementById('trazPlacas').value = ord.placas;
+    document.getElementById('trazRealizadoPor').value = getActiveUserSignatureStr();
+    updateLotesSummaryUI();
+    document.getElementById('trazabilidadModal').style.display = 'flex';
+  };
+
+  window.openTrazabilidadForEdit = function(recId) {
+    const rec = trazabilidadRecords.find(r => r.id === recId);
+    if (!rec) return;
+    const matchedOrder = activeOrders.find(o => o.referencia === rec.numEnvio) || shipments.find(s => s.referencia === rec.numEnvio);
+    currentTrazOrder = matchedOrder || {
+      id: 'SIM-' + Date.now(),
+      referencia: rec.numEnvio,
+      transporte: rec.transporte,
+      chofer: rec.chofer || '',
+      placas: rec.placas,
+      cantidadTotal: rec.lotes ? rec.lotes.reduce((s, l) => s + l.cantidad, 0) : 0,
+      articulosParsed: rec.lotes ? rec.lotes.map(l => ({ name: l.producto, qty: l.cantidad, client: l.cliente })) : []
+    };
+    tempLotes = rec.lotes ? JSON.parse(JSON.stringify(rec.lotes)) : [];
+    document.getElementById('trazRecordId').value = rec.id;
+    document.getElementById('trazOrderRef').value = currentTrazOrder.id;
+    document.getElementById('trazAnden').value = rec.anden;
+    document.getElementById('trazNumEnvio').value = rec.numEnvio;
+    document.getElementById('trazAlmacen').value = rec.almacen;
+    document.getElementById('trazFecha').value = rec.fecha;
+    document.getElementById('trazTransporte').value = rec.transporte;
+    document.getElementById('trazChofer').value = rec.chofer || '';
+    document.getElementById('trazPlacas').value = rec.placas;
+    document.getElementById('trazRealizadoPor').value = (currentDashboardUser && currentDashboardUser.username)
+      ? getActiveUserSignatureStr()
+      : cleanSignatureWithoutId(rec.realizadoPorDetalle || rec.realizadoPor || 'Sin usuario asignado');
+    updateLotesSummaryUI();
+    document.getElementById('trazabilidadModal').style.display = 'flex';
+  };
+
+  window.closeTrazModal = function() {
+    document.getElementById('trazabilidadModal').style.display = 'none';
+  };
+
+  window.closeLotesModal = function() {
+    document.getElementById('lotesModal').style.display = 'none';
+  };
+
+  function updateLotesSummaryUI() {
+    const el = document.getElementById('lotesSummaryText');
+    if (!el) return;
+    if (tempLotes.length === 0) {
+      el.textContent = '❌ Sin lotes registrados (Obligatorio)';
+      el.style.color = '#ef4444';
+    } else {
+      const sum = tempLotes.reduce((acc, l) => acc + l.cantidad, 0);
+      el.textContent = `✅ ${tempLotes.length} Registro(s) configurado(s) - Total: ${sum.toFixed(2)} TM`;
+      el.style.color = '#16a34a';
+    }
+  }
+
+  function renumberModalLoteRows() {
+    document.querySelectorAll('.modal-lote-row').forEach((row, i) => {
+      const badge = row.querySelector('.row-num-badge');
+      if (badge) badge.textContent = `#${i + 1}`;
+    });
+  }
+
+  function createModalLoteRow(loteVal = '', prodVal = '', qtyVal = '', tarimaVal = '', clientVal = '') {
+    const row = document.createElement('div');
+    row.className = 'item-row modal-lote-row';
+    const arts = (currentTrazOrder && currentTrazOrder.articulosParsed) ? currentTrazOrder.articulosParsed : [];
+    const envProds = [...new Set(arts.map(a => a.name).filter(Boolean))];
+    const envClients = [...new Set(arts.map(a => a.client).filter(Boolean))];
+
+    let prodOpts = '';
+    if (envProds.length > 1) {
+      prodOpts += '<option value="">-- Producto del Envío --</option>';
+    }
+    envProds.forEach(p => {
+      const sel = (p === prodVal || (envProds.length === 1 && !prodVal)) ? 'selected' : '';
+      prodOpts += `<option value="${p}" ${sel}>${p}</option>`;
+    });
+
+    let cliOpts = '';
+    if (envClients.length > 1) {
+      cliOpts += '<option value="">-- Cliente del Envío --</option>';
+    }
+    envClients.forEach(c => {
+      const sel = (c === clientVal || (envClients.length === 1 && !clientVal)) ? 'selected' : '';
+      cliOpts += `<option value="${c}" ${sel}>${c}</option>`;
+    });
+
+    row.innerHTML = `
+      <span class="row-num-badge">#1</span>
+      <input type="text" class="m-lote-val" placeholder="Código de Lote" value="${loteVal}" oninput="window.calculateLotesCounter()">
+      <input type="number" class="m-lote-qty" min="0.01" step="any" placeholder="Cant. en TM" value="${qtyVal}" oninput="window.calculateLotesCounter()">
+      <select class="m-lote-prod" onchange="window.calculateLotesCounter()">${prodOpts}</select>
+      <input type="text" class="m-lote-tarima" placeholder="N° Megasaco o Tarima" value="${tarimaVal}">
+      <select class="m-lote-client">${cliOpts}</select>
+      <button type="button" class="btn-clear btn-sm" onclick="window.removeModalLoteRowAction(this)">🗑️</button>
+    `;
+    return row;
+  }
+
+  window.addLoteRowAction = function() {
+    const c = document.getElementById('modalLotesContainer');
+    const count = c.querySelectorAll('.modal-lote-row').length;
+    if (count >= MAX_TRAZ_ROWS) {
+      notify(`Se alcanzó el máximo permitido de ${MAX_TRAZ_ROWS} valores de trazabilidad.`, 'error');
+      return;
+    }
+    c.appendChild(createModalLoteRow());
+    renumberModalLoteRows();
+    window.calculateLotesCounter();
+  };
+
+  window.removeModalLoteRowAction = function(btn) {
+    const c = document.getElementById('modalLotesContainer');
+    if (c.querySelectorAll('.modal-lote-row').length > 1) {
+      btn.parentElement.remove();
+      renumberModalLoteRows();
+      window.calculateLotesCounter();
+    } else {
+      notify('Debe existir al menos un registro de lote.', 'error');
+    }
+  };
+
+  window.calculateLotesCounter = function() {
+    let sum = 0;
+    const rows = document.querySelectorAll('.modal-lote-row');
+    const productRules = getShipmentProductRules();
+    const enteredByProd = {};
+
+    for (const pName in productRules) {
+      enteredByProd[pName] = { sumQty: 0, lotsSet: new Set(), rowCount: 0 };
+    }
+
+    rows.forEach(r => {
+      const q = parseFloat(r.querySelector('.m-lote-qty')?.value) || 0;
+      sum += q;
+      const prod = (r.querySelector('.m-lote-prod')?.value || '').trim();
+      const lote = (r.querySelector('.m-lote-val')?.value || '').trim().toUpperCase();
+      if (prod) {
+        if (!enteredByProd[prod]) enteredByProd[prod] = { sumQty: 0, lotsSet: new Set(), rowCount: 0 };
+        enteredByProd[prod].sumQty += q;
+        enteredByProd[prod].rowCount += 1;
+        if (lote) enteredByProd[prod].lotsSet.add(lote);
+      }
+    });
+
+    const target = currentTrazOrder ? currentTrazOrder.cantidadTotal : 0;
+    const box = document.getElementById('lotesCounterBox');
+    const badge = document.getElementById('valStatusBadge');
+    document.getElementById('valCurrentQty').textContent = sum.toFixed(2);
+    document.getElementById('valRowCount').textContent = rows.length;
+
+    const diff = Math.abs(sum - target);
+    if (diff < 0.001) {
+      box.className = 'counter-box success';
+      badge.textContent = '✅ Total Envío Exacto';
+    } else if (sum > target) {
+      box.className = 'counter-box error';
+      badge.textContent = `❌ Exceso Total +${(sum - target).toFixed(2)} TM`;
+    } else {
+      box.className = 'counter-box error';
+      badge.textContent = `⚠️ Faltan ${(target - sum).toFixed(2)} TM`;
+    }
+
+    const resBox = document.getElementById('lotesPerResourceBox');
+    const resText = document.getElementById('lotesPerResourceText');
+    let hasError = false;
+    const prodLines = [];
+
+    for (const prod in productRules) {
+      const rule = productRules[prod];
+      const current = enteredByProd[prod] || { sumQty: 0, lotsSet: new Set(), rowCount: 0 };
+      const lotsCount = current.lotsSet.size;
+      const qtyDiff = current.sumQty - rule.targetQty;
+
+      let statusIcon = '✅';
+      let msgExtra = '';
+
+      if (qtyDiff > 0.001) {
+        hasError = true;
+        statusIcon = '⛔';
+        msgExtra = ` (EXCESO de +${qtyDiff.toFixed(2)} TM sobre lo indicado en el envío)`;
+      } else if (Math.abs(qtyDiff) >= 0.001) {
+        hasError = true;
+        statusIcon = '⚠️';
+        msgExtra = ` (Faltan ${(rule.targetQty - current.sumQty).toFixed(2)} TM)`;
+      }
+
+      if (lotsCount > rule.maxLotsAllowed) {
+        hasError = true;
+        statusIcon = '⛔';
+        msgExtra += ` [EXCESO DE LOTES: ${lotsCount}/${rule.maxLotsAllowed} máx.]`;
+      }
+
+      const lotsListStr = lotsCount > 0 ? Array.from(current.lotsSet).join(', ') : 'Sin lote';
+      prodLines.push(`<div>${statusIcon} <b>${prod}:</b> Ingresado <b>${current.sumQty.toFixed(2)} / ${rule.targetQty.toFixed(2)} TM</b> | Lotes únicos: <b>${lotsCount}/${rule.maxLotsAllowed}</b> [${lotsListStr}]${msgExtra}</div>`);
+    }
+
+    resBox.className = hasError ? 'counter-box error' : 'counter-box success';
+    resText.innerHTML = prodLines.length > 0 ? prodLines.join('') : 'Sin productos en el envío.';
+  };
+
+  window.saveValidateLotesAction = function() {
+    const rows = document.querySelectorAll('.modal-lote-row');
+    if (rows.length > MAX_TRAZ_ROWS) {
+      notify(`No puedes registrar más de ${MAX_TRAZ_ROWS} valores de trazabilidad.`, 'error');
+      return;
+    }
+
+    const productRules = getShipmentProductRules();
+    const allowedProducts = Object.keys(productRules);
+    const parsed = [];
+    const enteredByProd = {};
+
+    for (const pName of allowedProducts) {
+      enteredByProd[pName] = { sumQty: 0, lotsSet: new Set(), rowCount: 0 };
+    }
+
+    let sum = 0;
+
+    for (const r of rows) {
+      const lote = r.querySelector('.m-lote-val').value.trim().toUpperCase();
+      const qty = parseFloat(r.querySelector('.m-lote-qty').value);
+      const prod = r.querySelector('.m-lote-prod').value;
+      const tarima = r.querySelector('.m-lote-tarima').value.trim();
+      const cli = r.querySelector('.m-lote-client').value;
+
+      if (!lote || isNaN(qty) || qty <= 0 || !prod || !tarima || !cli) {
+        notify('Completa todos los campos (Lote, TM, Recurso del Envío, N° Tarima y Cliente) en cada fila.', 'error');
+        return;
+      }
+
+      if (!productRules[prod]) {
+        notify(`⛔ El producto "${prod}" no pertenece a este envío.`, 'error');
+        return;
+      }
+
+      enteredByProd[prod].sumQty += qty;
+      enteredByProd[prod].rowCount += 1;
+      enteredByProd[prod].lotsSet.add(lote);
+
+      const maxLots = productRules[prod].maxLotsAllowed;
+      if (enteredByProd[prod].lotsSet.size > maxLots) {
+        notify(`⛔ RESTRICCIÓN DE LOTES: No puedes ingresar más de ${maxLots} lote(s) diferente(s) al producto "${prod}" según el envío.`, 'error');
+        return;
+      }
+
+      const prodTarget = productRules[prod].targetQty;
+      if (enteredByProd[prod].sumQty - prodTarget > 0.001) {
+        notify(`⛔ RESTRICCIÓN POR PRODUCTO: Estás ingresando ${enteredByProd[prod].sumQty.toFixed(2)} TM al producto "${prod}", pero el envío solo indica ${prodTarget.toFixed(2)} TM.`, 'error');
+        return;
+      }
+
+      parsed.push({ lote, cantidad: qty, producto: prod, tarima, cliente: cli });
+      sum += qty;
+    }
+
+    for (const prod of allowedProducts) {
+      const prodTarget = productRules[prod].targetQty;
+      const prodSum = enteredByProd[prod].sumQty;
+      if (Math.abs(prodSum - prodTarget) >= 0.001) {
+        notify(`⛔ CANTIDAD INCOMPLETA EN PRODUCTO: El producto "${prod}" requiere exactamente ${prodTarget.toFixed(2)} TM según el envío y tiene ${prodSum.toFixed(2)} TM registrados.`, 'error');
+        return;
+      }
+    }
+
+    const target = currentTrazOrder ? currentTrazOrder.cantidadTotal : 0;
+    if (Math.abs(sum - target) >= 0.001) {
+      notify(`La suma total de lotes (${sum.toFixed(2)} TM) debe ser igual al envío (${target.toFixed(2)} TM).`, 'error');
+      return;
+    }
+
+    tempLotes = parsed;
+    updateLotesSummaryUI();
+    document.getElementById('lotesModal').style.display = 'none';
+    notify('✅ Registros de trazabilidad validados correctamente por producto y envío.', 'success');
+  };
+
+  function buildProductLotesSummary(lotesArray) {
+    const prodMap = {};
+    let grandTotalTM = 0;
+    let grandTotalTarimas = 0;
+
+    (lotesArray || []).forEach(item => {
+      const p = item.producto || 'SIN RECURSO';
+      const l = item.lote || 'S/L';
+      const q = Number(item.cantidad) || 0;
+
+      if (!prodMap[p]) {
+        prodMap[p] = {
+          producto: p,
+          totalTM: 0,
+          totalRegistros: 0,
+          lotesDetalle: {}
+        };
+      }
+      prodMap[p].totalTM += q;
+      prodMap[p].totalRegistros += 1;
+      prodMap[p].lotesDetalle[l] = (prodMap[p].lotesDetalle[l] || 0) + q;
+
+      grandTotalTM += q;
+      grandTotalTarimas += 1;
+    });
+
+    const summaryRows = Object.values(prodMap).map(entry => {
+      const lotesBreakdown = Object.entries(entry.lotesDetalle)
+        .map(([loteCode, qty]) => `${loteCode} (${qty.toFixed(2)} TM)`)
+        .join(', ');
+      return {
+        producto: entry.producto,
+        lotesBreakdown: lotesBreakdown,
+        numLotesUnicos: Object.keys(entry.lotesDetalle).length,
+        totalRegistros: entry.totalRegistros,
+        totalTM: entry.totalTM
+      };
+    });
+
+    return { summaryRows, grandTotalTM, grandTotalTarimas };
+  }
+
+  window.saveTrazabilidadAction = function() {
+    if (tempLotes.length === 0) {
+      notify('Primero agrega y valida los lotes y números de tarima.', 'error');
+      window.openLotesModalAction();
+      return;
+    }
+    const recId = document.getElementById('trazRecordId').value;
+    const existingRec = recId ? trazabilidadRecords.find(r => r.id === recId) : null;
+
+    // Tomar el nombre del usuario que está realizando la trazabilidad (SIN ID)
+    const realizadoNombre = (currentDashboardUser && currentDashboardUser.username)
+      ? currentDashboardUser.username
+      : cleanSignatureWithoutId(existingRec ? existingRec.realizadoPor : 'Operador en Turno');
+
+    const realizadoDetalle = (currentDashboardUser && currentDashboardUser.username)
+      ? getActiveUserSignatureStr()
+      : cleanSignatureWithoutId(existingRec ? existingRec.realizadoPorDetalle : realizadoNombre);
+
+    const rec = {
+      id: recId || ('TRAZ-' + Date.now()),
+      anden: document.getElementById('trazAnden').value,
+      numEnvio: document.getElementById('trazNumEnvio').value,
+      almacen: document.getElementById('trazAlmacen').value,
+      fecha: document.getElementById('trazFecha').value,
+      transporte: document.getElementById('trazTransporte').value,
+      chofer: document.getElementById('trazChofer').value.trim(),
+      placas: document.getElementById('trazPlacas').value,
+      realizadoPor: realizadoNombre,
+      realizadoPorDetalle: realizadoDetalle,
+      lotes: tempLotes
+    };
+
+    if (recId) {
+      const idx = trazabilidadRecords.findIndex(r => r.id === recId);
+      if (idx !== -1) trazabilidadRecords[idx] = rec;
+    } else {
+      trazabilidadRecords.push(rec);
+    }
+    saveJSON('trazabilidad_records', trazabilidadRecords);
+    document.getElementById('trazabilidadModal').style.display = 'none';
+    window.renderTrazabilidadTable();
+    window.exportTrazabilidadPDF(rec.id);
+  };
+
+  window.openLotesModalAction = function() {
+    if (!currentTrazOrder) return;
+    const c = document.getElementById('modalLotesContainer');
+    c.innerHTML = '';
+    document.getElementById('valTargetQty').textContent = currentTrazOrder.cantidadTotal.toFixed(2);
+    if (tempLotes.length > 0) {
+      tempLotes.forEach(l => c.appendChild(createModalLoteRow(l.lote, l.producto, l.cantidad, l.tarima, l.cliente)));
+    } else {
+      const arts = currentTrazOrder.articulosParsed || [];
+      if (arts.length > 0) {
+        arts.forEach(a => c.appendChild(createModalLoteRow('', a.name, a.qty, '', a.client)));
+      } else {
+        c.appendChild(createModalLoteRow('', '', currentTrazOrder.cantidadTotal, '', ''));
+      }
+    }
+    renumberModalLoteRows();
+    window.calculateLotesCounter();
+    document.getElementById('lotesModal').style.display = 'flex';
+  };
+
+  window.deleteTrazabilidadAction = function(id) {
+    trazabilidadRecords = trazabilidadRecords.filter(r => r.id !== id);
+    saveJSON('trazabilidad_records', trazabilidadRecords);
+    window.renderTrazabilidadTable();
+    notify('Registro de trazabilidad eliminado.', 'info');
+  };
+
+  window.renderTrazabilidadTable = function() {
+    const tbody = document.getElementById('trazabilidadTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (trazabilidadRecords.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="10" class="empty-msg">No hay registros de trazabilidad en andén.</td></tr>';
+      return;
+    }
+    trazabilidadRecords.forEach(r => {
+      const { summaryRows, grandTotalTM, grandTotalTarimas } = buildProductLotesSummary(r.lotes || []);
+      const resumenHtml = summaryRows.map(s => `<div>• <b>${s.producto}:</b> ${s.totalTM.toFixed(2)} TM (${s.totalRegistros} tarimas/reg.) | Lotes [${s.numLotesUnicos}]: ${s.lotesBreakdown}</div>`).join('');
+      const firmaSinId = cleanSignatureWithoutId(r.realizadoPorDetalle || r.realizadoPor || '---');
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${r.anden}</td>
+        <td><strong>${r.numEnvio}</strong></td>
+        <td>${r.almacen}</td>
+        <td>${r.fecha}</td>
+        <td>${r.transporte}</td>
+        <td>${r.chofer || '---'}</td>
+        <td>${r.placas}</td>
+        <td><span class="priority-badge priority-general">${firmaSinId}</span></td>
+        <td style="font-size:11px; white-space:normal; min-width:300px;">
+          <div style="font-weight:700; color:#2563eb; margin-bottom:3px;">Total: ${grandTotalTM.toFixed(2)} TM en ${grandTotalTarimas} registro(s)</div>
+          ${resumenHtml}
+        </td>
+        <td>
+          <button type="button" class="btn-info btn-sm" onclick="window.openTrazabilidadForEdit('${r.id}')">✏️ Editar</button>
+          <button type="button" class="btn-excel btn-sm" onclick="window.exportTrazabilidadExcel('${r.id}')">📥 Excel</button>
+          <button type="button" class="btn-pdf btn-sm" onclick="window.exportTrazabilidadPDF('${r.id}')">📄 PDF</button>
+          <button type="button" class="btn-clear btn-sm" onclick="window.deleteTrazabilidadAction('${r.id}')">X</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  };
+
+  function parseDateParts(fechaStr) {
+    if (!fechaStr) {
+      const d = new Date();
+      return { dia: String(d.getDate()).padStart(2, '0'), mes: String(d.getMonth() + 1).padStart(2, '0'), anio: String(d.getFullYear()) };
+    }
+    const p = fechaStr.split(/[\/\-]/);
+    if (p.length === 3) {
+      if (p[0].length === 4) return { dia: p[2].padStart(2, '0'), mes: p[1].padStart(2, '0'), anio: p[0] };
+      return { dia: p[0].padStart(2, '0'), mes: p[1].padStart(2, '0'), anio: p[2] };
+    }
+    return { dia: fechaStr, mes: '', anio: '' };
+  }
+
+  // --- EXPORTAR EXCEL PLANTILLA REG 7.0.9 V10 (CON USUARIO EN ÁREA DE FIRMAS SIN ID) ---
+  window.exportTrazabilidadExcel = function(id) {
+    const r = trazabilidadRecords.find(item => item.id === id);
+    if (!r) return;
+    if (typeof XLSX === 'undefined') { notify('Librería Excel aún cargando, intenta en un segundo.', 'error'); return; }
+
+    const { dia, mes, anio } = parseDateParts(r.fecha);
+    const uniqueClients = r.lotes ? [...new Set(r.lotes.map(l => l.cliente).filter(Boolean))].join(', ') : '';
+    const { summaryRows, grandTotalTM, grandTotalTarimas } = buildProductLotesSummary(r.lotes || []);
+    const firmaRealizador = cleanSignatureWithoutId(r.realizadoPorDetalle || r.realizadoPor || (currentDashboardUser ? getActiveUserSignatureStr() : ''));
+
+    const sheetData = [
+      ["minsa", "", "Trazabilidad de Producto Terminado", "", "", "", "", ""],
+      ["ANDEN DE CARGA", "NUM DE ENVIO", "ALMACEN", "", "FECHA (DIA / MES / AÑO)", "", "", "REG 7.0.9"],
+      [r.anden, r.numEnvio, r.almacen, "", `${dia} / ${mes} / ${anio}`, "", "", "PRO 7.0.5"],
+      [],
+      ["NOMBRE DE LA LINEA DE TRANSPORTE", "", "NOMBRE DEL CHOFER DE LA LINEA DE TRANSPORTE", "", "", "PLACAS", "", ""],
+      [r.transporte, "", r.chofer || "", "", "", r.placas, "", ""],
+      [],
+      ["NOMBRE DEL CLIENTE", uniqueClients, "", "", "", "", "", ""],
+      [],
+      ["REGISTRO PRINCIPAL (SUPERVISOR y/o OPERADOR)", "", "", "", "REGISTRO DE VERIFICACION DE DATOS (VERIFICADOR DE EMBARQUES)", "", "", ""],
+      ["LOTE", "CANTIDAD EN TM", "RECURSO", "NUMERO DE MEGASACO O DE TARIMA", "LOTE", "CANTIDAD EN TM", "RECURSO", "NUMERO DE MEGASACO O DE TARIMA"]
+    ];
+
+    for (let i = 0; i < MAX_TRAZ_ROWS; i++) {
+      const l = (r.lotes && r.lotes[i]) ? r.lotes[i] : null;
+      sheetData.push([
+        l ? l.lote : "",
+        l ? l.cantidad : "",
+        l ? l.producto : "",
+        l ? (l.tarima || "") : "",
+        "", "", "", ""
+      ]);
+    }
+
+    sheetData.push(
+      [],
+      ["RESUMEN Y SUMA DE LOTES Y PRODUCTOS", "", "", "", "", "", "", ""],
+      ["RECURSO / PRODUCTO", "LOTES REGISTRADOS (MÁX. 3 POR RECURSO)", "", "CANT. LOTES ÚNICOS", "TOTAL TARIMAS / MEGASACOS", "SUMA TOTAL EN TM", "", ""]
+    );
+
+    summaryRows.forEach(s => {
+      sheetData.push([
+        s.producto,
+        s.lotesBreakdown,
+        "",
+        s.numLotesUnicos,
+        s.totalRegistros,
+        Number(s.totalTM.toFixed(2)),
+        "", ""
+      ]);
+    });
+
+    sheetData.push([
+      "TOTAL GENERAL DEL ENVÍO",
+      "", "", "",
+      grandTotalTarimas,
+      Number(grandTotalTM.toFixed(2)),
+      "", ""
+    ]);
+
+    sheetData.push(
+      [],
+      ["Firma de responsabilidad sobre la veracidad de los datos registrados", "", "", "", "Firma de responsabilidad sobre la veracidad de los datos registrados", "", "", ""],
+      [`REALIZADO POR: ${firmaRealizador} | FECHA: ${r.fecha}`, "", "", "", "", "", "", ""],
+      ["Registrar nombre, firma y fecha", "", "", "", "Registrar nombre, firma y fecha", "", "", ""],
+      [],
+      ["Página 1 de 1", "", "", "", "", "", "", "V10"]
+    );
+
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+    ws['!cols'] = [{ wch: 24 }, { wch: 20 }, { wch: 26 }, { wch: 32 }, { wch: 24 }, { wch: 20 }, { wch: 26 }, { wch: 32 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "REG 7.0.9 V10");
+    XLSX.writeFile(wb, `REG_7.0.9_Trazabilidad_${r.numEnvio}.xlsx`);
+    notify('Archivo Excel REG 7.0.9 descargado.', 'success');
+  };
+
+  // --- EXPORTAR PDF OFICIAL PLANTILLA REG 7.0.9 V10 (CON NOMBRE DEL USUARIO EN ÁREA DE FIRMAS SIN ID) ---
+  window.exportTrazabilidadPDF = function(id) {
+    const r = trazabilidadRecords.find(item => item.id === id);
+    if (!r) return;
+    if (!window.jspdf) { notify('Librería PDF cargando, intenta de nuevo.', 'error'); return; }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const { dia, mes, anio } = parseDateParts(r.fecha);
+    const uniqueClients = r.lotes ? [...new Set(r.lotes.map(l => l.cliente).filter(Boolean))].join(', ') : '';
+    const { summaryRows, grandTotalTM, grandTotalTarimas } = buildProductLotesSummary(r.lotes || []);
+    const usuarioRealizador = cleanSignatureWithoutId(r.realizadoPorDetalle || r.realizadoPor || (currentDashboardUser ? getActiveUserSignatureStr() : ''));
+
+    doc.setLineWidth(0.3);
+    doc.setDrawColor(0, 0, 0);
+    doc.setTextColor(0, 0, 0);
+
+    // 1. Encabezado minsa y Título
+    doc.setFillColor(30, 30, 30);
+    doc.ellipse(15, 9.5, 1.3, 2.6, 'F');
+    doc.ellipse(18, 10.5, 2.3, 1.1, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(19);
+    doc.text('minsa', 22, 12);
+
+    doc.setFontSize(15);
+    doc.text('Trazabilidad de Producto Terminado', 150, 11.5, { align: 'center' });
+
+    // 2. Primera Fila: ANDEN | NUM DE ENVIO | ALMACEN | FECHA (DIA/MES/AÑO) | REG 7.0.9
+    doc.rect(14, 15, 35, 4.2);
+    doc.rect(14, 19.2, 35, 6.5);
+    doc.setFontSize(6.5);
+    doc.text('ANDEN DE CARGA', 31.5, 18, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.text(String(r.anden || ''), 31.5, 23.6, { align: 'center' });
+
+    doc.rect(55, 15, 52, 4.2);
+    doc.rect(55, 19.2, 52, 6.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.text('NUM DE ENVIO', 81, 18, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.text(String(r.numEnvio || ''), 81, 23.6, { align: 'center' });
+
+    doc.rect(113, 15, 50, 4.2);
+    doc.rect(113, 19.2, 50, 6.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.text('ALMACEN', 138, 18, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.text(String(r.almacen || ''), 138, 23.6, { align: 'center' });
+
+    doc.rect(192, 15, 54, 3.8);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.text('FECHA', 219, 17.7, { align: 'center' });
+
+    doc.rect(192, 18.8, 18, 3.2);
+    doc.rect(210, 18.8, 18, 3.2);
+    doc.rect(228, 18.8, 18, 3.2);
+    doc.setFontSize(5.8);
+    doc.text('DIA', 201, 21.1, { align: 'center' });
+    doc.text('MES', 219, 21.1, { align: 'center' });
+    doc.text('AÑO', 237, 21.1, { align: 'center' });
+
+    doc.rect(192, 22, 18, 3.7);
+    doc.rect(210, 22, 18, 3.7);
+    doc.rect(228, 22, 18, 3.7);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text(String(dia), 201, 24.7, { align: 'center' });
+    doc.text(String(mes), 219, 24.7, { align: 'center' });
+    doc.text(String(anio), 237, 24.7, { align: 'center' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.text('REG 7.0.9', 283, 19, { align: 'right' });
+    doc.text('PRO 7.0.5', 283, 23.5, { align: 'right' });
+
+    // 3. Segunda Fila: LINEA DE TRANSPORTE | CHOFER | PLACAS
+    doc.rect(14, 27.5, 96, 4);
+    doc.rect(14, 31.5, 96, 5.5);
+    doc.setFontSize(6.5);
+    doc.text('NOMBRE DE LA LINEA DE TRANSPORTE', 62, 30.3, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.text(String(r.transporte || ''), 62, 35.2, { align: 'center' });
+
+    doc.rect(114, 27.5, 118, 4);
+    doc.rect(114, 31.5, 118, 5.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.text('NOMBRE DEL CHOFER DE LA LINEA DE TRANSPORTE', 173, 30.3, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.text(String(r.chofer || ''), 173, 35.2, { align: 'center' });
+
+    doc.rect(236, 27.5, 47, 4);
+    doc.rect(236, 31.5, 47, 5.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.text('PLACAS', 259.5, 30.3, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.text(String(r.placas || ''), 259.5, 35.2, { align: 'center' });
+
+    // 4. Tercera Fila: NOMBRE DEL CLIENTE
+    doc.rect(14, 38.5, 52, 4.8);
+    doc.rect(66, 38.5, 217, 4.8);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.text('NOMBRE DEL CLIENTE', 40, 41.8, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.text(String(uniqueClients), 69, 41.8);
+
+    // 5. Tabla Doble Central con 30 FILAS FIJAS
+    const bodyRows = [];
+    for (let i = 0; i < MAX_TRAZ_ROWS; i++) {
+      const l = (r.lotes && r.lotes[i]) ? r.lotes[i] : null;
+      bodyRows.push([
+        l ? String(l.lote) : '',
+        l ? String(l.cantidad) : '',
+        l ? String(l.producto) : '',
+        l ? String(l.tarima || '') : '',
+        '', '', '', ''
+      ]);
+    }
+
+    doc.autoTable({
+      startY: 44.5,
+      margin: { left: 14, right: 14 },
+      tableWidth: 269,
+      head: [
+        [
+          { content: 'REGISTRO PRINCIPAL (SUPERVISOR y/o OPERADOR)', colSpan: 4, styles: { halign: 'center', fontStyle: 'bold', fontSize: 6.8 } },
+          { content: 'REGISTRO DE VERIFICACION DE DATOS (VERIFICADOR DE EMBARQUES)', colSpan: 4, styles: { halign: 'center', fontStyle: 'bold', fontSize: 6.8 } }
+        ],
+        [
+          { content: 'LOTE', styles: { halign: 'center', valign: 'middle', fontStyle: 'bold', fontSize: 6.2 } },
+          { content: 'CANTIDAD EN TM', styles: { halign: 'center', valign: 'middle', fontStyle: 'bold', fontSize: 6.2 } },
+          { content: 'RECURSO', styles: { halign: 'center', valign: 'middle', fontStyle: 'bold', fontSize: 6.2 } },
+          { content: 'NUMERO DE MEGASACO O DE TARIMA', styles: { halign: 'center', valign: 'middle', fontStyle: 'bold', fontSize: 6 } },
+          { content: 'LOTE', styles: { halign: 'center', valign: 'middle', fontStyle: 'bold', fontSize: 6.2 } },
+          { content: 'CANTIDAD EN TM', styles: { halign: 'center', valign: 'middle', fontStyle: 'bold', fontSize: 6.2 } },
+          { content: 'RECURSO', styles: { halign: 'center', valign: 'middle', fontStyle: 'bold', fontSize: 6.2 } },
+          { content: 'NUMERO DE MEGASACO O DE TARIMA', styles: { halign: 'center', valign: 'middle', fontStyle: 'bold', fontSize: 6 } }
+        ]
+      ],
+      body: bodyRows,
+      theme: 'grid',
+      styles: {
+        lineColor: [0, 0, 0],
+        lineWidth: 0.25,
+        textColor: [0, 0, 0],
+        fontSize: 6.2,
+        cellPadding: 0.45,
+        halign: 'center',
+        valign: 'middle',
+        minCellHeight: 3.4
+      },
+      headStyles: {
+        fillColor: [255, 255, 255],
+        textColor: [0, 0, 0],
+        lineColor: [0, 0, 0],
+        lineWidth: 0.28,
+        cellPadding: 0.6,
+        minCellHeight: 3.8
+      },
+      columnStyles: {
+        0: { cellWidth: 28 }, 1: { cellWidth: 23 }, 2: { cellWidth: 34 }, 3: { cellWidth: 49.5 },
+        4: { cellWidth: 28 }, 5: { cellWidth: 23 }, 6: { cellWidth: 34 }, 7: { cellWidth: 49.5 }
+      }
+    });
+
+    // 6. APARTADO INFERIOR DE SUMA DE LOTES Y PRODUCTOS
+    const summaryBody = summaryRows.map(s => [
+      s.producto,
+      s.lotesBreakdown,
+      String(s.numLotesUnicos),
+      String(s.totalRegistros),
+      `${s.totalTM.toFixed(2)} TM`
+    ]);
+
+    summaryBody.push([
+      { content: 'SUMA TOTAL DEL ENVÍO', colSpan: 3, styles: { fontStyle: 'bold', halign: 'right', fillColor: [241, 245, 249] } },
+      { content: String(grandTotalTarimas), styles: { fontStyle: 'bold', halign: 'center', fillColor: [241, 245, 249] } },
+      { content: `${grandTotalTM.toFixed(2)} TM`, styles: { fontStyle: 'bold', halign: 'center', fillColor: [241, 245, 249] } }
+    ]);
+
+    doc.autoTable({
+      startY: doc.lastAutoTable.finalY + 2,
+      margin: { left: 14, right: 14 },
+      tableWidth: 269,
+      head: [
+        [
+          { content: 'APARTADO DE SUMA DE LOTES Y PRODUCTOS', colSpan: 5, styles: { halign: 'center', fontStyle: 'bold', fontSize: 6.8, fillColor: [230, 236, 245] } }
+        ],
+        [
+          { content: 'PRODUCTO / RECURSO', styles: { halign: 'center', fontStyle: 'bold', fontSize: 6.2 } },
+          { content: 'SUMA DESGLOSADA POR LOTE (MÁX. 3 LOTES/RECURSO)', styles: { halign: 'center', fontStyle: 'bold', fontSize: 6.2 } },
+          { content: 'LOTES ÚNICOS', styles: { halign: 'center', fontStyle: 'bold', fontSize: 6.2 } },
+          { content: 'TOTAL TARIMAS / REG.', styles: { halign: 'center', fontStyle: 'bold', fontSize: 6.2 } },
+          { content: 'SUMA TOTAL PRODUCTO (TM)', styles: { halign: 'center', fontStyle: 'bold', fontSize: 6.2 } }
+        ]
+      ],
+      body: summaryBody,
+      theme: 'grid',
+      styles: {
+        lineColor: [0, 0, 0],
+        lineWidth: 0.25,
+        textColor: [0, 0, 0],
+        fontSize: 6.3,
+        cellPadding: 0.6,
+        halign: 'center',
+        valign: 'middle',
+        minCellHeight: 3.6
+      },
+      headStyles: {
+        fillColor: [255, 255, 255],
+        textColor: [0, 0, 0],
+        lineColor: [0, 0, 0],
+        lineWidth: 0.28,
+        cellPadding: 0.6,
+        minCellHeight: 3.6
+      },
+      columnStyles: {
+        0: { cellWidth: 62 },
+        1: { cellWidth: 115 },
+        2: { cellWidth: 26 },
+        3: { cellWidth: 32 },
+        4: { cellWidth: 34 }
+      }
+    });
+
+    // 7. Bloques de Firmas de Responsabilidad (Coloca el nombre del usuario que realizó la trazabilidad SIN ID)
+    let signY = doc.lastAutoTable.finalY + 2.5;
+    if (signY + 18 > 204) {
+      doc.addPage();
+      signY = 18;
+    }
+
+    // Caja Izquierda: Firma de quien realiza el registro (Supervisor / Operador)
+    doc.rect(40, signY, 88, 16);
+    doc.line(40, signY + 11.5, 128, signY + 11.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.text('Firma de responsabilidad sobre la veracidad de los', 84, signY + 3, { align: 'center' });
+    doc.text('datos registrados', 84, signY + 5.7, { align: 'center' });
+
+    if (usuarioRealizador) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.2);
+      doc.text(`${usuarioRealizador}  |  ${r.fecha || ''}`, 84, signY + 10.2, { align: 'center' });
+    }
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.3);
+    doc.text('Registrar nombre, firma y fecha', 84, signY + 14.5, { align: 'center' });
+
+    // Caja Derecha: Verificador de Embarques
+    doc.rect(172, signY, 88, 16);
+    doc.line(172, signY + 11.5, 260, signY + 11.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.text('Firma de responsabilidad sobre la veracidad de los datos', 216, signY + 3, { align: 'center' });
+    doc.text('registrados', 216, signY + 5.7, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.3);
+    doc.text('Registrar nombre, firma y fecha', 216, signY + 14.5, { align: 'center' });
+
+    doc.setFontSize(7.5);
+    doc.text('Página 1 de 1', 14, 205);
+    doc.text('V10', 283, 205, { align: 'right' });
+
+    doc.save(`REG_7.0.9_Trazabilidad_${r.numEnvio}.pdf`);
+    notify(`PDF Oficial REG 7.0.9 generado (Firmado por: ${usuarioRealizador}).`, 'success');
+  };
+
+  // --- CADENA DE ENVÍOS E HISTORIAL ---
+  window.renderChainView = function() {
+    const tbody = document.getElementById('chainTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    document.getElementById('kpiActiveCount').textContent = activeOrders.length;
+
+    const todayStr = new Date().toLocaleDateString('es-MX');
+    const yest = new Date(); yest.setDate(yest.getDate() - 1);
+    const yestStr = yest.toLocaleDateString('es-MX');
+    let tTons = 0, tCnt = 0, yTons = 0, yCnt = 0;
+
+    shipments.forEach(s => {
+      if (s.fecha === todayStr) { tTons += s.cantidadTotal || 0; tCnt++; }
+      else if (s.fecha === yestStr) { yTons += s.cantidadTotal || 0; yCnt++; }
+    });
+
+    document.getElementById('kpiTodayTons').textContent = `${tTons.toFixed(2)} Ton`;
+    document.getElementById('kpiTodayCount').textContent = `${tCnt} órdenes finalizadas`;
+    document.getElementById('kpiYesterdayTons').textContent = `${yTons.toFixed(2)} Ton`;
+    document.getElementById('kpiYesterdayCount').textContent = `${yCnt} órdenes finalizadas`;
+
+    if (activeOrders.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-msg">No hay envíos activos en curso.</td></tr>';
+      return;
+    }
+    activeOrders.forEach(o => {
+      let phase = 'Por ingresar', loc = 'Cola de espera';
+      if (o.zone === 'patio') { phase = 'En Patio'; loc = `Patio #${o.slot}`; }
+      else if (o.zone === 'andenes') { phase = 'En Andén'; loc = o.slot <= 6 ? `Embarques #${o.slot}` : `Bodega 27 - Andén #${o.slot - 6}`; }
+      const pClass = o.prioridad === 'URGENTE' ? 'priority-urgente' : o.prioridad === 'ALTA' ? 'priority-alta' : 'priority-general';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${o.referencia}</td>
+        <td><span class="priority-badge ${pClass}">${o.prioridad || 'GENERAL'}</span></td>
+        <td><strong>${phase}</strong></td>
+        <td>${loc}</td>
+        <td>${o.transporte}</td>
+        <td>${o.chofer} (${o.placas})</td>
+        <td>${o.clientes}</td>
+        <td>${o.cantidadTotal} Ton</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  };
+
+  window.renderTable = function() {
+    const tbody = document.getElementById('dataTable');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (shipments.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="12" class="empty-msg">No hay envíos embarcados aún.</td></tr>';
+      return;
+    }
+    shipments.forEach(item => {
+      const pClass = item.prioridad === 'URGENTE' ? 'priority-urgente' : item.prioridad === 'ALTA' ? 'priority-alta' : 'priority-general';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${item.fecha}</td>
+        <td>${item.referencia || 'N/D'}</td>
+        <td><span class="priority-badge ${pClass}">${item.prioridad || 'GENERAL'}</span></td>
+        <td>${item.transporte}</td>
+        <td>${item.chofer}</td>
+        <td>${item.placas}</td>
+        <td>${item.clientes}</td>
+        <td>${item.articulosTexto}</td>
+        <td>${item.cantidadTotal} Ton</td>
+        <td>${item.tiempoPatioStr || '0m 00s'}</td>
+        <td>${item.tiempoAndenStr || '0m 00s'}</td>
+        <td><strong>$${(item.costoTotal || 0).toFixed(2)}</strong></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  };
+
+  window.exportHistoryExcel = function() {
+    if (!shipments.length || typeof XLSX === 'undefined') { notify('Sin datos en historial.', 'error'); return; }
+    const ws = XLSX.utils.json_to_sheet(shipments);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Historial');
+    XLSX.writeFile(wb, 'Historial_Embarcados.xlsx');
+  };
+
+  window.exportProductsExcel = function() {
+    if (!shipments.length || typeof XLSX === 'undefined') { notify('Sin datos en historial.', 'error'); return; }
+    const map = {};
+    shipments.forEach(s => (s.articulosParsed || []).forEach(a => { map[a.name] = (map[a.name] || 0) + a.qty; }));
+    const ws = XLSX.utils.json_to_sheet(Object.keys(map).map(k => ({ Producto: k, Total_TM: map[k] })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Resumen_Productos');
+    XLSX.writeFile(wb, 'Resumen_Productos.xlsx');
+  };
+
+  window.exportClientsExcel = function() {
+    if (!shipments.length || typeof XLSX === 'undefined') { notify('Sin datos en historial.', 'error'); return; }
+    const rows = [];
+    shipments.forEach(s => (s.articulosParsed || []).forEach(a => rows.push({ Cliente: a.client, Producto: a.name, Toneladas: a.qty })));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Por_Cliente');
+    XLSX.writeFile(wb, 'Productos_Por_Cliente.xlsx');
+  };
+
+  window.exportTimePDF = function() {
+    if (!shipments.length || !window.jspdf) { notify('Sin datos en historial.', 'error'); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.text('Reporte de Tiempos por Carga', 14, 18);
+    doc.autoTable({
+      startY: 25,
+      head: [['Referencia', 'Transporte', 'Chofer', 'Ton', 'Patio', 'Andén']],
+      body: shipments.map(s => [s.referencia, s.transporte, s.chofer, s.cantidadTotal, s.tiempoPatioStr, s.tiempoAndenStr])
+    });
+    doc.save('Reporte_Tiempos.pdf');
+  };
+
+  window.clearHistoryAction = function() {
+    shipments = [];
+    saveJSON('shipments_data', shipments);
+    window.renderTable();
+    notify('Historial vaciado.', 'info');
+  };
+
+  // Permitir guardar o iniciar sesión presionando Enter
+  ['catTransporte', 'catChofer', 'catPlacas'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); window.saveTransportAction(); } });
+  });
+  ['catCliente', 'catNumCliente'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); window.saveClientAction(); } });
+  });
+  ['catProducto', 'catCodigoProducto', 'catConjuntoProducto'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); window.saveProductAction(); } });
+  });
+  ['catUserNombre', 'catUserPass', 'catUserPuesto', 'catUserId'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); window.saveUserAction(); } });
+  });
+  ['dashLoginUser', 'dashLoginPass'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); window.verifyDashboardLogin(); } });
+  });
+  ['dbLoginUser', 'dbLoginPass'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); window.verifyDatabaseLogin(); } });
+  });
+
+  // Inicializar vistas al cargar
+  updateDashboardUserUI();
+  updateDatabaseTabUI();
+  window.renderCatalog();
+  window.renderClients();
+  window.renderProducts();
+  window.renderUsers();
+  window.populateTransportSelect();
+  window.renderClientBlocks();
+  window.renderDashboard();
+  window.renderChainView();
+  window.renderTrazabilidadTable();
+  window.renderTable();
+
+  setInterval(() => {
+    if (document.getElementById('nav-dashboard')?.checked) {
+      window.renderDashboard();
+    }
+  }, 1000);
+</script>
+
+</body>
+</html>
